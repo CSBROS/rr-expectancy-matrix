@@ -1,0 +1,1452 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>R:R Expectancy Matrix</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap">
+<style>
+/* Layout: a trading-desk reference sheet. Matrix on the left (the lookup), predictor rail on the right (the projection),
+   projection charts below, then a real-time trade simulator and sizing panels on the same tokens. Diverging blue (+E) / red (-E). */
+:root {
+  --bg: #f4f4f1; --surface: #fcfcfb; --ink: #111214; --ink-2: #4f5157; --muted: #7d7f85;
+  --line: #e2e2dc; --axis: #c4c4bc; --accent: #2a6fc9; --focus: #111214;
+  --mid: #ecebe7; --on-mid: #111214;
+  --pos1: #d7e7fb; --pos2: #a9cbf5; --pos3: #6da7ec; --pos4: #2a6fc9; --pos5: #1c5296;
+  --neg1: #fbe0dd; --neg2: #f5b6ae; --neg3: #ec8379; --neg4: #c73a35; --neg5: #962224;
+  --on1: #111214; --on2: #111214; --on3: #111214; --on4: #ffffff; --on5: #ffffff;
+  --band-outer: rgba(42, 111, 201, 0.14); --band-inner: rgba(42, 111, 201, 0.28); --line-main: #1c5296;
+  --s-fixed: #4f5157; --s-q: #2a78d6; --s-h: #eb6834; --s-f: #1baf7a; --s-2: #eda100; --hl: rgba(42, 111, 201, 0.09);
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-cond: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1011; --surface: #17181a; --ink: #eeeeea; --ink-2: #b9bab3; --muted: #8a8b86;
+    --line: #2a2b2d; --axis: #3c3d3f; --accent: #5c9ae8; --focus: #eeeeea;
+    --mid: #2e2f30; --on-mid: #eeeeea;
+    --pos1: #1b2c42; --pos2: #1d4675; --pos3: #235fa8; --pos4: #4b8fe3; --pos5: #9cc5f3;
+    --neg1: #3a1f1e; --neg2: #6b2523; --neg3: #a12e2b; --neg4: #de6a64; --neg5: #f2aaa3;
+    --on1: #eeeeea; --on2: #eeeeea; --on3: #eeeeea; --on4: #111214; --on5: #111214;
+    --band-outer: rgba(92, 154, 232, 0.16); --band-inner: rgba(92, 154, 232, 0.32); --line-main: #9cc5f3;
+    --s-fixed: #b9bab3; --s-q: #3987e5; --s-h: #d95926; --s-f: #199e70; --s-2: #c98500; --hl: rgba(92, 154, 232, 0.14);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1011; --surface: #17181a; --ink: #eeeeea; --ink-2: #b9bab3; --muted: #8a8b86;
+  --line: #2a2b2d; --axis: #3c3d3f; --accent: #5c9ae8; --focus: #eeeeea;
+  --mid: #2e2f30; --on-mid: #eeeeea;
+  --pos1: #1b2c42; --pos2: #1d4675; --pos3: #235fa8; --pos4: #4b8fe3; --pos5: #9cc5f3;
+  --neg1: #3a1f1e; --neg2: #6b2523; --neg3: #a12e2b; --neg4: #de6a64; --neg5: #f2aaa3;
+  --on1: #eeeeea; --on2: #eeeeea; --on3: #eeeeea; --on4: #111214; --on5: #111214;
+  --band-outer: rgba(92, 154, 232, 0.16); --band-inner: rgba(92, 154, 232, 0.32); --line-main: #9cc5f3;
+  --s-fixed: #b9bab3; --s-q: #3987e5; --s-h: #d95926; --s-f: #199e70; --s-2: #c98500; --hl: rgba(92, 154, 232, 0.14);
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px; line-height: 1.45; }
+.wrap { max-width: 1320px; margin-inline: auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 24px 40px; display: flex; flex-direction: column; gap: 20px; }
+header { display: flex; flex-direction: column; gap: 8px; }
+h1 { font-family: var(--font-cond); font-weight: 600; font-size: clamp(26px, 3.2vw, 36px); letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+.lede { margin: 0; max-width: 72ch; color: var(--ink-2); font-size: 15px; }
+.formula { font-family: var(--font-num); font-size: 13px; color: var(--ink); display: flex; flex-wrap: wrap; gap: 6px 18px; }
+.formula span { white-space: normal; overflow-wrap: anywhere; }
+h2 { font-family: var(--font-cond); font-weight: 600; font-size: 17px; margin: 0; letter-spacing: 0.01em; }
+.eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 500; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 350px; gap: 20px; align-items: start; }
+@media (max-width: 1040px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; transition: box-shadow 200ms; }
+.card.flash { box-shadow: 0 0 0 2px var(--accent); }
+.bar { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
+.readout { font-family: var(--font-num); font-size: 12.5px; color: var(--ink-2); min-height: 1.45em; }
+.readout b { color: var(--ink); font-weight: 600; }
+.scroll { overflow-x: auto; min-width: 0; }
+table.mx { border-collapse: collapse; font-family: var(--font-num); font-size: 12px; font-variant-numeric: tabular-nums; margin-inline: auto; }
+.mx th { font-weight: 500; color: var(--ink-2); padding: 3px 4px; text-align: center; white-space: nowrap; }
+.mx thead .grp th { font-family: var(--font-ui); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); border-bottom: 1px solid var(--axis); }
+.mx thead .grp th.risk { color: var(--neg4); }
+.mx thead .grp th.rew { color: var(--accent); }
+.mx thead .lab th { color: var(--ink); font-weight: 600; font-size: 12.5px; }
+.mx thead .be th { font-size: 10.5px; color: var(--muted); font-weight: 400; padding-bottom: 6px; }
+.mx th.even, .mx thead .be th.even { color: var(--accent); }
+.mx thead .lab th.even { background: var(--accent); color: var(--surface); border-radius: 4px 4px 0 0; }
+.mx tbody th { text-align: right; padding-right: 8px; color: var(--ink); font-weight: 500; }
+.mx td { padding: 0; border: 1px solid var(--surface); position: relative; }
+.mx td.even { border-left: 2px solid var(--accent); border-right: 2px solid var(--accent); }
+.mx tbody tr:last-child td.even { border-bottom: 2px solid var(--accent); }
+.mx td.edge-b { border-bottom: 2.5px solid var(--ink); }
+.mx td.edge-l { border-left: 2.5px solid var(--ink); }
+.cell { display: block; width: 100%; min-width: 50px; height: 27px; border: 0; margin: 0; padding: 0 4px; font: inherit; cursor: pointer; text-align: center; }
+.cell:hover { filter: brightness(1.08); }
+.cell:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; position: relative; z-index: 2; }
+.cell.sel { outline: 2.5px solid var(--focus); outline-offset: -3px; font-weight: 600; position: relative; z-index: 1; }
+.cell.be { outline: 1.5px dashed var(--ink); outline-offset: -4px; }
+.cell.be.sel { outline-style: solid; }
+.mid { background: var(--mid); color: var(--on-mid); }
+.pos1 { background: var(--pos1); color: var(--on1); } .pos2 { background: var(--pos2); color: var(--on2); } .pos3 { background: var(--pos3); color: var(--on3); }
+.pos4 { background: var(--pos4); color: var(--on4); } .pos5 { background: var(--pos5); color: var(--on5); }
+.neg1 { background: var(--neg1); color: var(--on1); } .neg2 { background: var(--neg2); color: var(--on2); } .neg3 { background: var(--neg3); color: var(--on3); }
+.neg4 { background: var(--neg4); color: var(--on4); } .neg5 { background: var(--neg5); color: var(--on5); }
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-family: var(--font-num); font-size: 10.5px; color: var(--ink-2); }
+.legend i { display: inline-block; width: 26px; height: 12px; border-radius: 2px; }
+.legend .gap { margin-inline: 6px 2px; }
+.legend .boundary { display: inline-block; width: 18px; border-bottom: 2.5px solid var(--ink); height: 7px; margin-left: 10px; }
+.seg { display: inline-flex; border: 1px solid var(--axis); border-radius: 6px; overflow: hidden; }
+.seg button { font-family: var(--font-num); font-size: 11.5px; padding: 4px 10px; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--axis); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.note { margin: 0; font-size: 12.5px; color: var(--ink-2); max-width: 90ch; }
+.note b { color: var(--ink); font-weight: 600; }
+/* predictor */
+.panel { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+@media (max-width: 1040px) { .panel { position: static; } }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { font-size: 11.5px; color: var(--ink-2); font-weight: 500; }
+.field input { font-family: var(--font-num); font-size: 14px; padding: 6px 8px; border: 1px solid var(--axis); border-radius: 5px; background: var(--bg); color: var(--ink); width: 100%; box-sizing: border-box; font-variant-numeric: tabular-nums; }
+.field input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.field.span2 { grid-column: span 2; }
+.presets { display: flex; flex-wrap: wrap; gap: 4px; }
+.presets button { font-family: var(--font-num); font-size: 11.5px; padding: 3px 8px; border: 1px solid var(--axis); border-radius: 999px; background: transparent; color: var(--ink-2); cursor: pointer; }
+.presets button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.presets button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.headline { font-size: 14px; line-height: 1.5; margin: 0; padding: 10px 12px; background: var(--bg); border-radius: 6px; border: 1px solid var(--line); }
+.headline b { font-weight: 600; }
+.stats { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 0; margin: 0; font-size: 13px; }
+.stats dt { color: var(--ink-2); padding-top: 8px; border-top: 1px solid var(--line); }
+.stats dd { margin: 0; padding-left: 12px; text-align: right; font-family: var(--font-num); font-variant-numeric: tabular-nums; color: var(--ink); padding-top: 8px; border-top: 1px solid var(--line); white-space: nowrap; }
+.stats dt:first-child, .stats dt:first-child + dd { border-top: 0; padding-top: 0; }
+.stats dd.sub { grid-column: 1 / -1; text-align: left; white-space: normal; padding-left: 0; padding-top: 0; border-top: 0; line-height: 1.4; }
+.stats dd small { color: var(--muted); font-size: 11.5px; }
+.stats .big { font-size: 20px; font-weight: 600; }
+.pos-t { color: var(--accent); } .neg-t { color: var(--neg4); }
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 30rem), 1fr)); gap: 20px; }
+.plot { position: relative; min-height: 270px; }
+.plot svg { display: block; overflow: visible; }
+.plot text { fill: var(--muted); font-family: var(--font-num); font-size: 10.5px; }
+.tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--axis); border-radius: 6px; padding: 6px 8px; font-family: var(--font-num); font-size: 11.5px; color: var(--ink); box-shadow: 0 4px 14px rgba(0,0,0,0.12); white-space: nowrap; z-index: 3; }
+.tip .h { color: var(--muted); margin-bottom: 2px; }
+.keys { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11.5px; color: var(--ink-2); }
+.keys span { display: inline-flex; align-items: center; gap: 6px; }
+.keys i { display: inline-block; width: 18px; height: 10px; border-radius: 2px; }
+.keys i.ln { height: 0; border-top: 2px solid var(--line-main); border-radius: 0; }
+.keys i.dash { height: 0; border-top: 2px dashed var(--ink-2); border-radius: 0; }
+.assume { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 12px 24px; }
+.assume p { margin: 0; font-size: 12.5px; color: var(--ink-2); }
+.assume b { color: var(--ink); font-weight: 600; }
+.foot { font-size: 12px; color: var(--muted); margin: 0; }
+@media (prefers-reduced-motion: no-preference) { .cell { transition: filter 120ms ease; } }
+
+/* ---------- lower section: trade simulator, position sizing, Monte Carlo, prop challenge (same tokens as the matrix) ---------- */
+.sec-head { display: flex; flex-direction: column; gap: 6px; }
+.sec-head h2 { font-size: clamp(21px, 2.2vw, 26px); letter-spacing: -0.005em; text-wrap: balance; }
+.sec-head p { margin: 0; max-width: 78ch; color: var(--ink-2); font-size: 14px; }
+.h3 { font-family: var(--font-cond); font-weight: 600; font-size: 15px; margin: 0; }
+.sim-ctrls { display: flex; flex-wrap: wrap; gap: 12px 14px; align-items: flex-end; }
+.sim-ctrls .field { width: 10rem; }
+.sim-ctrls .field.rate-field { width: auto; }
+.rate { display: flex; gap: 6px; }
+.rate input { width: 6rem; }
+.field select { font-family: var(--font-num); font-size: 14px; padding: 6px 8px; border: 1px solid var(--axis); border-radius: 5px; background: var(--bg); color: var(--ink); box-sizing: border-box; }
+.field select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.field.inline { flex-direction: row; align-items: center; gap: 8px; }
+.rate-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 11.5px; color: var(--ink-2); }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { font-family: var(--font-ui); font-size: 13px; font-weight: 500; padding: 7px 14px; border-radius: 5px; border: 1px solid var(--axis); background: var(--surface); color: var(--ink); cursor: pointer; }
+.btn:hover:not(:disabled) { border-color: var(--ink-2); }
+.btn.primary { background: var(--ink); color: var(--surface); border-color: var(--ink); min-width: 7rem; }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-family: var(--font-num); font-size: 12.5px; color: var(--ink-2); min-height: 1.6em; }
+.pill { font-family: var(--font-ui); font-size: 10.5px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--axis); color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px; }
+.pill.running { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.pill.running::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.pill.paused { border-style: dashed; }
+.pill.done { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+@media (prefers-reduced-motion: no-preference) { .pill.running::before { animation: pulse 1.6s ease-in-out infinite; } @keyframes pulse { 50% { opacity: 0.25; } } }
+.notice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 13px; color: var(--ink); padding: 8px 12px; border: 1px dashed var(--axis); border-radius: 6px; background: var(--bg); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.25rem), 1fr)); gap: 10px; }
+.tile { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 9px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tile .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 500; }
+.tile .v { font-family: var(--font-num); font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .s { font-family: var(--font-num); font-size: 11px; color: var(--muted); line-height: 1.35; }
+.sim-main { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr); gap: 16px 22px; align-items: start; }
+@media (max-width: 1100px) { .sim-main { grid-template-columns: minmax(0, 1fr); } }
+.sim-main > div { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.chart-bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; min-height: 30px; }
+.runinfo { margin: 0; font-family: var(--font-num); font-size: 11.5px; color: var(--muted); }
+.log { max-height: 372px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; min-width: 0; }
+table.dt { border-collapse: collapse; width: 100%; font-family: var(--font-num); font-size: 12px; font-variant-numeric: tabular-nums; }
+.dt th { text-align: right; font-family: var(--font-ui); font-weight: 500; color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; padding: 6px 8px; border-bottom: 1px solid var(--axis); white-space: nowrap; background: var(--surface); }
+.dt td { text-align: right; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; color: var(--ink); vertical-align: top; }
+.dt td small { display: block; color: var(--muted); font-size: 10.5px; }
+.dt th:first-child, .dt td:first-child { text-align: left; }
+.dt tr.hl td { background: var(--hl); }
+.dt td.dim { color: var(--muted); }
+.log .dt th { position: sticky; top: 0; z-index: 1; }
+@media (prefers-reduced-motion: no-preference) { .dt tr.new td { animation: rowin 1s ease-out; } @keyframes rowin { from { background: var(--hl); } } }
+.sw { display: inline-block; width: 12px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 7px; }
+.keys i.ink { height: 0; border-top: 2px solid var(--ink); border-radius: 0; }
+.keys i.dot { width: 9px; height: 9px; border-radius: 50%; }
+.keys i.rule { width: 0; height: 12px; border-left: 1.5px solid var(--ink-2); border-radius: 0; }
+.plot text.lab { font-size: 11px; fill: var(--ink-2); font-weight: 500; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.plot text.now { font-size: 11.5px; fill: var(--ink); font-weight: 600; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.plot.short { min-height: 240px; }
+.plot.clickable svg { cursor: crosshair; }
+.sz-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 14px 28px; align-items: start; }
+@media (max-width: 980px) { .sz-grid { grid-template-columns: minmax(0, 1fr); } }
+.sz-grid > div { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.pa-ctrls { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; }
+.pa-ctrls .field { width: auto; }
+.pa-ctrls #pa-max { width: 8rem; }
+.pa-ctrls .note { flex: 1 1 22rem; }
+.pa-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 18px 26px; align-items: start; }
+.pa-grid > div, .pa-grid > dl { min-width: 0; }
+.sub2 { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 500; margin-bottom: 8px; }
+.dim { color: var(--muted); }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Binary bracket · 1R risked per trade</div>
+    <h1>R:R Expectancy Matrix</h1>
+    <p class="lede">Expectancy per trade for every win rate against every risk:reward ratio, including the ratios that risk more than they target. A 1:1 bracket only makes money above a 50% win rate. Every ratio left of it needs more than that, every ratio right of it needs less. Pick a cell to project the next N trades.</p>
+    <div class="formula"><span>E = p·b − (1 − p) − c</span><span>breakeven p* = (1 + c) / (1 + b)</span><span>p = win rate · b = reward per 1R · c = cost per trade (R)</span></div>
+  </header>
+
+  <div class="layout">
+    <section class="card" id="matrix-card" aria-labelledby="mx-title">
+      <div class="bar">
+        <h2 id="mx-title">Expectancy per trade, R</h2>
+        <div class="seg" role="group" aria-label="What the matrix shows" id="mx-view">
+          <button type="button" data-view="E" aria-pressed="true">Expectancy</button>
+          <button type="button" data-view="K" aria-pressed="false">Optimal size</button>
+          <button type="button" data-view="P" aria-pressed="false">P(profit)</button>
+        </div>
+      </div>
+      <div class="legend" id="legend" aria-label="Colour scale"></div>
+      <div class="readout" id="hover-readout" aria-live="polite">Hover a cell for its numbers. Select one to project it.</div>
+      <div class="scroll"><table class="mx" id="mx"></table></div>
+      <p class="note" id="mx-note"></p>
+    </section>
+
+    <aside class="card panel" id="predictor" aria-labelledby="pred-title">
+      <div class="bar"><h2 id="pred-title">Next N trades</h2><span class="eyebrow">exact binomial + simulation</span></div>
+      <div class="fields">
+        <div class="field"><label for="in-p">Win rate (%)</label><input id="in-p" type="number" min="0.1" max="99.9" step="0.1" value="55"></div>
+        <div class="field"><label for="in-b">Reward per 1R risked</label><input id="in-b" type="number" min="0.05" max="20" step="0.05" value="1"></div>
+        <div class="field span2"><label for="in-n">Number of trades (N)</label><input id="in-n" type="number" min="1" max="20000" step="1" value="1000">
+          <div class="presets" id="n-presets" role="group" aria-label="Trade count presets"></div></div>
+        <div class="field"><label for="in-c">Cost per trade (R)</label><input id="in-c" type="number" min="0" max="1" step="0.01" value="0"></div>
+        <div class="field"><label for="in-usd">Risk per trade ($)</label><input id="in-usd" type="number" min="1" max="100000" step="1" value="100"></div>
+        <div class="field"><label for="in-dd">Drawdown limit ($)</label><input id="in-dd" type="number" min="1" max="10000000" step="50" value="1500"></div>
+        <div class="field"><label for="in-tgt">Profit target ($)</label><input id="in-tgt" type="number" min="1" max="10000000" step="50" value="1500"></div>
+      </div>
+      <p class="headline" id="headline"></p>
+      <dl class="stats" id="stats"></dl>
+    </aside>
+  </div>
+
+  <section class="charts">
+    <div class="card" id="fan-card">
+      <div class="bar"><h2>Equity path, cumulative R</h2><span class="eyebrow" id="fan-sub"></span></div>
+      <div class="keys"><span><i style="background: var(--band-outer)"></i>5–95% of paths</span><span><i style="background: var(--band-inner)"></i>25–75%</span><span><i class="ln"></i>median</span><span><i class="dash"></i>expected (N·E)</span></div>
+      <div class="plot" id="fan"></div>
+    </div>
+    <div class="card" id="pp-card">
+      <div class="bar"><h2>P(net profit) as N grows</h2><span class="eyebrow">exact</span></div>
+      <div class="keys"><span><i class="ln"></i>P(total R &gt; 0 after n trades)</span><span><i class="dash"></i>50%</span></div>
+      <div class="plot" id="pp"></div>
+      <p class="note">The saw-tooth at small n is real: wins come in whole trades, and a flat result counts as not profitable, so the threshold jumps between odd and even n.</p>
+    </div>
+  </section>
+
+  <section class="sec-head" id="sim" aria-labelledby="sim-title">
+    <div class="eyebrow">Random trades at your win rate and R:R</div>
+    <h2 id="sim-title">Trade simulator</h2>
+    <p>Draws one trade at a time, win or loss, at the pace you choose: every few seconds, minutes, hours or days. A run keeps its own clock, so you can close the page and come back to the trades drawn while you were away. The shaded cone is where 90% and 50% of all possible runs land, so you can see how lucky or unlucky this run is.</p>
+  </section>
+
+  <section class="card" id="sim-card" aria-label="Trade simulator controls and results">
+    <div class="sim-ctrls">
+      <div class="field"><label for="t-bal">Start balance ($)</label><input id="t-bal" type="number" min="100" max="1000000000" step="100" value="25000"></div>
+      <div class="field"><label for="t-n">Trades to simulate</label><input id="t-n" type="number" min="10" max="5000" step="10" value="250"></div>
+      <div class="field rate-field"><label for="t-every">One trade every</label>
+        <div class="rate"><input id="t-every" type="number" min="0.01" max="999" step="any" value="1"><select id="t-unit" aria-label="Time unit"><option value="s" selected>seconds</option><option value="m">minutes</option><option value="h">hours</option><option value="d">days</option></select></div></div>
+      <div class="btns"><button type="button" class="btn primary" id="t-go">Start</button><button type="button" class="btn" id="t-skip">Skip to end</button><button type="button" class="btn" id="t-new">New run</button></div>
+    </div>
+    <div class="rate-row"><span>Quick rates</span><div class="presets" id="rate-presets" role="group" aria-label="Rate presets"></div></div>
+    <div class="status" id="t-status" aria-live="polite"></div>
+    <div class="notice" id="t-notice" hidden></div>
+    <div class="tiles" id="t-tiles"></div>
+    <div class="sim-main">
+      <div>
+        <div class="chart-bar"><div class="keys" id="t-keys"></div>
+          <div class="seg" role="group" aria-label="What the chart shows" id="t-chart-mode"><button type="button" data-mode="fixed" aria-pressed="true">Fixed risk</button><button type="button" data-mode="all" aria-pressed="false">All position sizes</button></div></div>
+        <div class="plot" id="t-chart"></div>
+        <p class="runinfo" id="t-runinfo"></p>
+      </div>
+      <div>
+        <div class="chart-bar"><h3 class="h3">Trade log</h3><div class="field inline"><label for="t-log-mode">Position size</label><select id="t-log-mode"></select></div></div>
+        <div class="log"><table class="dt" id="t-log"><thead><tr><th>#</th><th>Result</th><th>R</th><th>Risk</th><th>P/L</th><th>Balance</th><th>Drawdown</th></tr></thead><tbody></tbody></table></div>
+        <p class="runinfo" id="t-log-meta"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="sizing-card" aria-labelledby="sz-title">
+    <div class="bar"><h2 id="sz-title">Position sizing</h2><span class="eyebrow" id="k-meta"></span></div>
+    <div class="sz-grid">
+      <div>
+        <p class="note" id="k-head"></p>
+        <div class="scroll"><table class="dt" id="k-table"></table></div>
+      </div>
+      <div>
+        <div class="keys"><span><i class="ink"></i>median growth per trade, g(f)</span><span><i class="dot" style="background: var(--accent)"></i>your size</span></div>
+        <div class="plot short" id="k-curve"></div>
+        <p class="note">g(f) = p·ln(1 + f(b − c)) + (1 − p)·ln(1 − f(1 + c)) is the median growth per trade when you risk a fraction f of equity. It peaks at the growth-optimal size f* = E / ((b − c)(1 + c)) and falls back to about zero at 2× f*. Past that, the balance shrinks over time even with an edge. P(ever −50%) uses the continuous-time approximation 0.5^(2/α − 1) for α × f*, and e^(−2μD/σ²) for fixed dollars.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="mc-card" aria-labelledby="mc-title">
+    <div class="bar"><h2 id="mc-title">Monte Carlo by position size</h2><span class="eyebrow" id="m-meta"></span></div>
+    <div class="scroll"><table class="dt" id="m-table"></table></div>
+    <p class="note">Every row uses the same win rate, reward, cost and random outcomes; only the position size changes. The highlighted row has the highest median final balance. Max drawdown is measured from the running peak. Bust means the balance fell to 10% of the start or less at any point; fixed-dollar sizing also stops when one more loss is unaffordable.</p>
+  </section>
+
+  <section class="card" id="pass-card" aria-labelledby="pa-title">
+    <div class="bar"><h2 id="pa-title">Prop challenge pass odds</h2><span class="eyebrow" id="pa-meta"></span></div>
+    <div class="pa-ctrls">
+      <div class="field"><label for="pa-type">Drawdown type</label><select id="pa-type"><option value="lock" selected>Trailing, locks at start</option><option value="trail">Trailing, never locks</option><option value="static">Static</option></select></div>
+      <div class="field"><label for="pa-max">Max trades</label><input id="pa-max" type="number" min="1" max="2000" step="1" value="250"></div>
+      <p class="note" id="pa-inputs"></p>
+    </div>
+    <div class="pa-grid">
+      <dl class="stats" id="pa-stats"></dl>
+      <div><div class="sub2">Wins needed to stand at the target after n trades</div><div class="scroll"><table class="dt" id="pa-wins"></table></div><p class="note">Counts wins at exactly n trades and ignores the drawdown. P(pass) on the left counts the first touch of the target at any point, so it can be higher than these rows.</p></div>
+      <div><div class="sub2">P(pass) by risk per trade · click to use that risk</div>
+        <div class="keys"><span><i class="ln"></i>your win rate</span><span><i class="dash"></i>breakeven win rate (no edge)</span><span><i class="rule"></i>your risk</span></div>
+        <div class="plot short clickable" id="pa-curve"></div></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>What the numbers assume</h2>
+    <div class="assume">
+      <p><b>Every trade hits target or stop.</b> Each trade wins b R with probability p or loses 1 R. Break-even stops, partial exits and time exits are not binary. A rule like the V1-body test (34% wins plus 31% break-even scratches) does not sit on this grid.</p>
+      <p><b>Trades are independent.</b> The binomial results are exact for independent trades. Real sequences cluster by regime, so live losing streaks and drawdowns run longer than the simulated ones.</p>
+      <p><b>Costs move the boundary.</b> Cost per trade shifts every breakeven up by c / (1 + b). At c = 0.07R, about the MES slippage-plus-commission load measured on the ORB, a 1:1 bracket needs 53.5%, not 50%.</p>
+      <p><b>Worked example: an ES opening-range breakout on this grid (after costs).</b> V1 at 1:0.5 won 65.9% against a 66.7% breakeven. V1 at 1:1 won 53.2% against about 53.5%. V2 at 1:1 won 42.5%. All three sit on or below the boundary.</p>
+      <p><b>Optimal sizing assumes you know your edge.</b> f* maximises long-run median growth only when p and b are exact. An overstated win rate pushes you past f*, where growth falls and drawdowns deepen, which is why most traders risk ¼ to ½ of it.</p>
+      <p><b>The simulator draws from a seeded random sequence.</b> Each run fixes its random draws when it is created, so pausing, changing the pace or reopening the page never changes a trade already drawn. The run and its clock are saved in this browser only.</p>
+      <p><b>The challenge model is per trade.</b> The trailing drawdown follows the closed-trade balance, which matches an end-of-day rule when you take one trade a day. Intraday open-equity trailing, daily loss limits and consistency rules are not modelled.</p>
+    </div>
+  </section>
+  <p class="foot">Educational tool, not financial advice. Every number is computed in your browser and nothing is sent anywhere. A simulator run is saved in this browser only.</p>
+</div>
+
+<script>
+(function () {
+  const REW = [0.25, 1 / 3, 0.5, 2 / 3, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4, 5];
+  const LAB = ['1:0.25', '1:0.33', '1:0.5', '1:0.67', '1:0.75', '1:1', '1:1.25', '1:1.5', '1:2', '1:2.5', '1:3', '1:4', '1:5'];
+  const WRS = []; for (let w = 95; w >= 5; w -= 5) WRS.push(w);
+  const EVEN = 5, NRISK = 5;
+  const N_PRESETS = [100, 500, 1000, 5000, 10000, 20000];
+  const $ = (s) => document.querySelector(s);
+  const NSS = 'http://www.w3.org/2000/svg';
+  const state = { p: 0.55, b: 1, n: 1000, c: 0, usd: 100, dd: 1500, tgt: 1500 };
+  let view = 'E';
+  const reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  // ---------- formatting ----------
+  const minus = (s) => s.replace('-', '−');
+  const fR = (x, d = 2) => (Math.abs(x) < 0.5 * Math.pow(10, -d) ? (0).toFixed(d) : minus((x > 0 ? '+' : '') + x.toFixed(d)));
+  const fBig = (x) => { const a = Math.abs(x); const s = a >= 100 ? Math.round(a).toLocaleString('en-US') : a.toFixed(a >= 10 ? 1 : 2); return (x < 0 ? '−' : x > 0 ? '+' : '') + s; };
+  const fUSD = (x) => (x < 0 ? '−$' : x > 0 ? '+$' : '$') + Math.round(Math.abs(x)).toLocaleString('en-US');
+  const fP = (x) => (x < 0.001 ? '<0.1%' : x > 0.999 ? '>99.9%' : (100 * x).toFixed(1) + '%');
+  const fPct = (x) => (100 * x).toFixed(1) + '%';
+  const fK = (f) => (f <= 0 ? '0%' : f < 0.001 ? '<0.1%' : f < 0.1 ? (100 * f).toFixed(1) + '%' : Math.round(100 * f) + '%');
+  const fK2 = (f) => (f <= 0 ? '0%' : f < 0.01 ? (100 * f).toFixed(2) + '%' : f < 0.1 ? (100 * f).toFixed(1) + '%' : (100 * f).toFixed(0) + '%');
+  const fPc = (x) => (x >= 0.995 ? '>99%' : x <= 0.005 ? '<1%' : Math.round(100 * x) + '%');
+  const fPP = (x) => minus((x >= 0 ? '+' : '') + (100 * x).toFixed(1)) + ' pp';
+  const sig3 = (x) => String(+x.toPrecision(3));
+  function fMoney(v) {
+    const a = Math.abs(v), s = v < 0 ? '−' : '';
+    if (a >= 1e12) return s + '$' + (a / 1e12).toFixed(1) + 'T';
+    if (a >= 1e9) return s + '$' + (a / 1e9).toFixed(1) + 'B';
+    if (a >= 1e6) return s + '$' + (a / 1e6).toFixed(2) + 'M';
+    if (a >= 1e4) return s + '$' + (a / 1e3).toFixed(1) + 'k';
+    if (a >= 1) return s + '$' + Math.round(a).toLocaleString('en-US');
+    return s + '$' + a.toFixed(2);
+  }
+  const fSignUSD = (v) => (v > 0 ? '+' : '') + fMoney(v);
+  function fMoneyLn(lnv) {                      // a balance given as its natural log, safe past 1e308
+    if (!Number.isFinite(lnv)) return lnv < 0 ? '$0' : '∞';
+    const l10 = lnv / Math.LN10;
+    if (l10 < 15) return fMoney(Math.exp(lnv));
+    const ex = Math.floor(l10); return '$' + Math.pow(10, l10 - ex).toFixed(1) + 'e' + ex;
+  }
+  function fTick10(l10) {                       // axis label for a log10 dollar value
+    if (l10 > 12) return '$1e' + Math.round(l10);
+    const v = Math.pow(10, l10);
+    if (v >= 1e9) return '$' + sig3(v / 1e9) + 'B';
+    if (v >= 1e6) return '$' + sig3(v / 1e6) + 'M';
+    if (v >= 1e3) return '$' + sig3(v / 1e3) + 'k';
+    if (v >= 1) return '$' + sig3(v);
+    return '$' + v.toPrecision(2);
+  }
+  const fDD = (x) => (x < 0.0005 ? '0.0%' : '−' + (100 * x).toFixed(1) + '%');
+  const signedPct = (x) => { const a = Math.abs(x); return (x > 0 ? '+' : x < 0 ? '−' : '') + (100 * a).toFixed(a < 0.01 ? 3 : 2) + '%'; };
+  const decFor = (step) => Math.max(0, Math.min(4, -Math.floor(Math.log10(step) + 1e-9)));
+  const E = (p, b, c) => p * b - (1 - p) - c;
+  const be = (b, c) => (1 + c) / (1 + b);
+
+  // ---------- growth-optimal position size ----------
+  function sizeInfo(p, b, c) {
+    const q = 1 - p, w = b - c, l = 1 + c, e = p * w - q * l, fmax = 1 / l;
+    const fstar = e > 0 && w > 0 ? e / (w * l) : 0;
+    const g = (f) => (f <= 0 ? 0 : f >= fmax ? -Infinity : p * Math.log1p(f * w) + q * Math.log1p(-f * l));
+    return { p, q, w, l, e, fmax, fstar, g };
+  }
+  const kBucket = (f) => (f <= 0 ? 'mid' : 'pos' + (f <= 0.025 ? 1 : f <= 0.1 ? 2 : f <= 0.25 ? 3 : f <= 0.5 ? 4 : 5));
+  function pBucket(P) { const d = P - 0.5, a = Math.abs(d); if (a < 0.005) return 'mid'; return (d > 0 ? 'pos' : 'neg') + (a <= 0.1 ? 1 : a <= 0.25 ? 2 : a <= 0.4 ? 3 : a <= 0.49 ? 4 : 5); }
+
+  // ---------- matrix ----------
+  function bucket(e) {
+    if (Math.abs(e) < 1e-9) return 'mid';
+    const a = Math.abs(e), k = a <= 0.1 ? 1 : a <= 0.25 ? 2 : a <= 0.5 ? 3 : a <= 1 ? 4 : 5;
+    return (e > 0 ? 'pos' : 'neg') + k;
+  }
+  function cellInfo(p, b, c, e) {
+    if (view === 'K') {
+      const f = sizeInfo(p, b, c).fstar;
+      return { text: f <= 0 ? '0' : fK(f), cls: kBucket(f), aria: f <= 0 ? 'growth-optimal size 0%, no size grows the balance' : `growth-optimal size ${fK(f)} of equity per trade` };
+    }
+    if (view === 'P') {
+      const P = tailGE(state.n, p, kmin(state.n, b, c));
+      return { text: fPc(P), cls: pBucket(P), aria: `${fP(P)} chance that ${state.n} trades end net positive` };
+    }
+    return { text: fR(e), cls: bucket(e), aria: `expectancy ${fR(e)}R per trade` };
+  }
+  function buildLegend() {
+    const L = $('#legend'); L.replaceChildren();
+    const add = (cls, text) => { const i = document.createElement('i'); i.className = cls; L.append(i); if (text) { const s = document.createElement('span'); s.textContent = text; L.append(s); } };
+    const t = (x) => { const s = document.createElement('span'); s.textContent = x; L.append(s); };
+    const gap = (x) => { const s = document.createElement('span'); s.className = 'gap'; s.textContent = x; L.append(s); };
+    if (view === 'K') {
+      t('0'); add('mid'); ['pos1', 'pos2', 'pos3', 'pos4', 'pos5'].forEach((c) => add(c)); t('more');
+      gap('steps at 2.5 · 10 · 25 · 50% of equity');
+    } else if (view === 'P') {
+      t('<1%'); ['neg5', 'neg4', 'neg3', 'neg2', 'neg1'].forEach((c) => add(c)); add('mid'); ['pos1', 'pos2', 'pos3', 'pos4', 'pos5'].forEach((c) => add(c)); t('>99%');
+      gap('steps at 10 · 25 · 40 · 49 pp from 50%');
+    } else {
+      t('−'); ['neg5', 'neg4', 'neg3', 'neg2', 'neg1'].forEach((c) => add(c)); add('mid'); ['pos1', 'pos2', 'pos3', 'pos4', 'pos5'].forEach((c) => add(c)); t('+');
+      gap('steps at 0.10 · 0.25 · 0.50 · 1.00R');
+    }
+    const bnd = document.createElement('i'); bnd.className = 'boundary'; L.append(bnd); t('breakeven boundary');
+  }
+  function renderMatrix() {
+    const c = state.c, T = $('#mx'); T.replaceChildren();
+    const thead = document.createElement('thead');
+    const g = document.createElement('tr'); g.className = 'grp';
+    const th0 = document.createElement('th'); th0.rowSpan = 1; th0.textContent = ''; g.append(th0);
+    const gh = (txt, span, cls) => { const th = document.createElement('th'); th.colSpan = span; th.textContent = txt; th.className = cls; g.append(th); };
+    gh('Risk > reward', NRISK, 'risk'); gh('Even', 1, 'even'); gh('Reward > risk', REW.length - NRISK - 1, 'rew');
+    const lab = document.createElement('tr'); lab.className = 'lab';
+    const tl = document.createElement('th'); tl.textContent = 'Win % ↓  R:R →'; tl.style.fontWeight = '400'; tl.style.color = 'var(--muted)'; tl.style.fontSize = '10.5px'; lab.append(tl);
+    LAB.forEach((x, j) => { const th = document.createElement('th'); th.scope = 'col'; th.textContent = x; if (j === EVEN) th.className = 'even'; lab.append(th); });
+    const ber = document.createElement('tr'); ber.className = 'be';
+    const tb0 = document.createElement('th'); tb0.textContent = 'needs >'; ber.append(tb0);
+    REW.forEach((b, j) => { const th = document.createElement('th'); th.textContent = fPct(be(b, c)); if (j === EVEN) th.className = 'even'; ber.append(th); });
+    thead.append(g, lab, ber); T.append(thead);
+    const grid = WRS.map((w) => REW.map((b) => E(w / 100, b, c)));
+    const tb = document.createElement('tbody');
+    WRS.forEach((w, i) => {
+      const tr = document.createElement('tr');
+      const rh = document.createElement('th'); rh.scope = 'row'; rh.textContent = w + '%'; tr.append(rh);
+      REW.forEach((b, j) => {
+        const e = grid[i][j], td = document.createElement('td');
+        const cls = [];
+        if (j === EVEN) cls.push('even');
+        if (e > 1e-9) {
+          if (i + 1 < WRS.length && grid[i + 1][j] <= 1e-9) cls.push('edge-b');
+          if (j > 0 && grid[i][j - 1] <= 1e-9) cls.push('edge-l');
+        }
+        td.className = cls.join(' ');
+        const info = cellInfo(w / 100, b, c, e);
+        const btn = document.createElement('button'); btn.type = 'button';
+        btn.className = 'cell ' + info.cls + (Math.abs(e) < 1e-9 ? ' be' : '');
+        btn.textContent = info.text;
+        btn.dataset.p = String(w / 100); btn.dataset.b = String(b); btn.dataset.j = String(j);
+        btn.setAttribute('aria-label', `Win rate ${w}%, ${LAB[j]}: ${info.aria}, breakeven ${fPct(be(b, c))}`);
+        if (Math.abs(state.p - w / 100) < 1e-6 && Math.abs(state.b - b) < 1e-3) btn.classList.add('sel');
+        td.append(btn); tr.append(td);
+      });
+      tb.append(tr);
+    });
+    T.append(tb);
+    $('#mx-title').textContent = view === 'K' ? 'Growth-optimal risk per trade (f*), % of equity' : view === 'P' ? `P(net profit) after ${state.n.toLocaleString('en-US')} trades` : 'Expectancy per trade, R';
+    buildLegend();
+    const evenBE = be(1, c);
+    $('#mx-note').replaceChildren();
+    const n1 = document.createElement('span');
+    if (view === 'K') {
+      n1.append(document.createTextNode('The growth-optimal size f* = E / ((b − c)(1 + c)) is the share of equity to risk on every trade for the fastest long-run growth. Cells left of the boundary have no edge, so f* is zero there. Most traders risk '));
+      const bb = document.createElement('b'); bb.textContent = '¼ to ½ of f*'; n1.append(bb);
+      n1.append(document.createTextNode('; the Position sizing and Monte Carlo panels below show why.'));
+    } else if (view === 'P') {
+      n1.append(document.createTextNode('Exact binomial probability that the next '));
+      const bb = document.createElement('b'); bb.textContent = state.n.toLocaleString('en-US') + ' trades'; n1.append(bb);
+      n1.append(document.createTextNode(' end above zero; a flat finish counts as not profitable. Change N in the Next N trades panel. Close to the boundary the odds stay near a coin flip even over thousands of trades.'));
+    } else {
+      n1.append(document.createTextNode('The 1:1 column (outlined) breaks even at '));
+      const bb = document.createElement('b'); bb.textContent = fPct(evenBE); n1.append(bb);
+      n1.append(document.createTextNode(c > 0 ? ` with ${c.toFixed(2)}R of cost per trade. ` : '. '));
+      n1.append(document.createTextNode('Risking 1 to make 0.5 needs ' + fPct(be(0.5, c)) + ' and 1 to make 0.25 needs ' + fPct(be(0.25, c)) + '. Dashed cells sit exactly on breakeven; the heavy line separates paying cells from losing ones.'));
+    }
+    $('#mx-note').append(n1);
+  }
+  function setView(v) {
+    view = v;
+    [...$('#mx-view').children].forEach((bt) => bt.setAttribute('aria-pressed', String(bt.dataset.view === v)));
+    renderMatrix();
+  }
+  $('#mx-view').addEventListener('click', (ev) => { const bt = ev.target.closest('button[data-view]'); if (bt) setView(bt.dataset.view); });
+  $('#mx').addEventListener('click', (ev) => {
+    const btn = ev.target.closest('button.cell'); if (!btn) return;
+    state.p = +btn.dataset.p; state.b = +btn.dataset.b;
+    $('#in-p').value = (100 * state.p).toFixed(0); $('#in-b').value = +state.b.toFixed(4);
+    renderMatrix(); schedule();
+  });
+  const hover = (ev) => {
+    const btn = ev.target.closest('button.cell'); if (!btn) return;
+    const p = +btn.dataset.p, b = +btn.dataset.b, j = +btn.dataset.j, e = E(p, b, state.c);
+    const ki = sizeInfo(p, b, state.c), Pp = tailGE(state.n, p, kmin(state.n, b, state.c));
+    const R = $('#hover-readout'); R.replaceChildren();
+    const s1 = document.createElement('b'); s1.textContent = `${Math.round(p * 100)}% · ${LAB[j]}`;
+    R.append(s1, document.createTextNode(`  E ${fR(e)}R/trade (${fUSD(e * state.usd)} at ${fUSD(state.usd).replace('+', '')}/R) · breakeven ${fPct(be(b, state.c))} · margin ${minus(((p - be(b, state.c)) * 100 >= 0 ? '+' : '') + ((p - be(b, state.c)) * 100).toFixed(1))} pp · ${N0()} trades → ${fBig(e * N0())}R expected · f* ${ki.fstar > 0 ? fK(ki.fstar) : '0%'} · P(profit) ${fP(Pp)}`));
+  };
+  const N0 = () => state.n.toLocaleString('en-US');
+  $('#mx').addEventListener('pointerover', hover);
+  $('#mx').addEventListener('focusin', hover);
+
+  // ---------- exact binomial ----------
+  const LG = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+  function lgamma(x) {
+    if (x < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * x)) - lgamma(1 - x);
+    x -= 1; let a = LG[0]; const t = x + 7.5;
+    for (let i = 1; i < 9; i++) a += LG[i] / (x + i);
+    return 0.5 * Math.log(2 * Math.PI) + (x + 0.5) * Math.log(t) - t + Math.log(a);
+  }
+  function pmf(N, p) {
+    const out = new Float64Array(N + 1), lp = Math.log(p), lq = Math.log(1 - p), lN = lgamma(N + 1);
+    for (let k = 0; k <= N; k++) out[k] = Math.exp(lN - lgamma(k + 1) - lgamma(N - k + 1) + k * lp + (N - k) * lq);
+    return out;
+  }
+  // regularised incomplete beta (continued fraction); P(X >= k) for X ~ Bin(N, p) = I_p(k, N - k + 1)
+  function betacf(a, b, x) {
+    const MAXIT = 3000, EPS = 3e-14, FPMIN = 1e-300;
+    const qab = a + b, qap = a + 1, qam = a - 1;
+    let c = 1, d = 1 - (qab * x) / qap; if (Math.abs(d) < FPMIN) d = FPMIN; d = 1 / d; let h = d;
+    for (let m = 1; m <= MAXIT; m++) {
+      const m2 = 2 * m;
+      let aa = (m * (b - m) * x) / ((qam + m2) * (a + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN; c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN; d = 1 / d; h *= d * c;
+      aa = (-(a + m) * (qab + m) * x) / ((a + m2) * (qap + m2));
+      d = 1 + aa * d; if (Math.abs(d) < FPMIN) d = FPMIN; c = 1 + aa / c; if (Math.abs(c) < FPMIN) c = FPMIN; d = 1 / d;
+      const del = d * c; h *= del; if (Math.abs(del - 1) < EPS) break;
+    }
+    return h;
+  }
+  function betai(a, b, x) {
+    if (x <= 0) return 0; if (x >= 1) return 1;
+    const bt = Math.exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * Math.log(x) + b * Math.log(1 - x));
+    if (x < (a + 1) / (a + b + 2)) return (bt * betacf(a, b, x)) / a;
+    return 1 - (bt * betacf(b, a, 1 - x)) / b;
+  }
+  const tailGE = (N, p, k) => (k <= 0 ? 1 : k > N ? 0 : Math.min(1, Math.max(0, betai(k, N - k + 1, p))));
+  function binomQ(N, p, qs) {
+    const f = pmf(N, p), s = qs.slice().sort((a, b) => a - b), out = {}; let cum = 0, qi = 0;
+    for (let k = 0; k <= N && qi < s.length; k++) { cum += f[k]; while (qi < s.length && cum >= s[qi] - 1e-12) { out[s[qi]] = k; qi++; } }
+    while (qi < s.length) { out[s[qi]] = N; qi++; }
+    return out;
+  }
+  const kmin = (N, b, c) => Math.floor(N * (1 + c) / (1 + b) + 1e-9) + 1;   // wins needed for total R > 0
+  function pProfit(N, p, b, c) {
+    const f = pmf(N, p); let s = 0; for (let k = Math.min(N + 1, kmin(N, b, c)); k <= N; k++) s += f[k]; return Math.min(1, s);
+  }
+  function binom(N, p, b, c) {
+    const f = pmf(N, p), km = kmin(N, b, c);
+    let s = 0; for (let k = Math.min(N + 1, km); k <= N; k++) s += f[k];
+    const qs = [0.05, 0.25, 0.5, 0.75, 0.95], out = {}; let cum = 0, qi = 0;
+    for (let k = 0; k <= N && qi < qs.length; k++) { cum += f[k]; while (qi < qs.length && cum >= qs[qi] - 1e-12) { out[qs[qi]] = k; qi++; } }
+    while (qi < qs.length) { out[qs[qi]] = N; qi++; }
+    const tot = (k) => k * b - (N - k) - N * c;
+    return { pProfit: Math.min(1, s), km, q: Object.fromEntries(qs.map((x) => [x, tot(out[x])])), wq: out };
+  }
+  // longest losing streak: A_n = P(no run of L losses in n trades)
+  function noRun(N, q, L) {
+    if (L <= 0) return 0;
+    const A = new Float64Array(N + 1), pq = (1 - q) * Math.pow(q, L);
+    for (let n = 0; n <= N; n++) {
+      if (n < L) A[n] = 1;
+      else if (n === L) A[n] = 1 - Math.pow(q, L);
+      else A[n] = A[n - 1] - pq * A[n - L - 1];
+    }
+    return Math.max(0, Math.min(1, A[N]));
+  }
+  function streakQ(N, q, target) {   // smallest m with P(longest losing run <= m) >= target; noRun is increasing in L
+    let lo = 0, hi = N;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (noRun(N, q, mid + 1) >= target) hi = mid; else lo = mid + 1; }
+    return lo;
+  }
+
+  // ---------- simulation ----------
+  function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function simulate(N, p, b, c, ddR) {
+    const P = Math.max(300, Math.min(2000, Math.floor(4e6 / N)));
+    const K = Math.min(N, 160), xs = []; for (let i = 1; i <= K; i++) xs.push(Math.round(i * N / K));
+    const rnd = mulberry32(Math.round(p * 1e6) ^ Math.round(b * 1e4) * 7919 ^ N * 31 ^ Math.round(c * 1e4) * 104729);
+    const snap = xs.map(() => new Float64Array(P)); const dd = new Float64Array(P);
+    for (let path = 0; path < P; path++) {
+      let eq = 0, pk = 0, mdd = 0, xi = 0;
+      for (let t = 1; t <= N; t++) {
+        eq += (rnd() < p ? b : -1) - c;
+        if (eq > pk) pk = eq; else if (pk - eq > mdd) mdd = pk - eq;
+        if (t === xs[xi]) { snap[xi][path] = eq; xi++; }
+      }
+      dd[path] = mdd;
+    }
+    const qs = (s, a) => { const i = (s.length - 1) * a, lo = Math.floor(i), hi = Math.ceil(i); return s[lo] + (s[hi] - s[lo]) * (i - lo); };   // s already sorted
+    const bands = xs.map((x, i) => { const s = snap[i].sort(); return { x, q05: qs(s, 0.05), q25: qs(s, 0.25), q50: qs(s, 0.5), q75: qs(s, 0.75), q95: qs(s, 0.95) }; });
+    let hit = 0; for (let i = 0; i < P; i++) if (dd[i] >= ddR - 1e-9) hit++;
+    const dds = dd.slice().sort();
+    return { P, bands, ddMed: qs(dds, 0.5), dd95: qs(dds, 0.95), pDD: hit / P };
+  }
+
+  // ---------- charts ----------
+  function svgEl(tag, attrs, parent) { const e = document.createElementNS(NSS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.append(e); return e; }
+  function niceTicks(lo, hi, n) {
+    if (hi === lo) { hi = lo + 1; }
+    const raw = (hi - lo) / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+    const step = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag;
+    const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10));
+    return { ticks: out, lo: Math.floor(lo / step) * step, hi: Math.ceil(hi / step) * step, step };
+  }
+  function tickLabel(v) { const a = Math.abs(v); const s = a >= 10000 ? (a / 1000).toFixed(0) + 'k' : a >= 1000 ? (a / 1000).toFixed(a % 1000 ? 1 : 0) + 'k' : (Math.round(a * 100) / 100).toString(); return (v < 0 ? '−' : '') + s; }
+  function tipFor(box, cls) { let t = box.querySelector('.' + (cls || 'tip')); if (!t) { t = document.createElement('div'); t.className = cls || 'tip'; t.hidden = true; box.append(t); } return t; }
+  function placeTip(box, t, x, y) { t.hidden = false; const bw = box.clientWidth; let l = x + 12; if (l + t.offsetWidth > bw) l = x - t.offsetWidth - 12; if (l < 0) l = 0; let tp = y - t.offsetHeight - 10; if (tp < 0) tp = y + 12; t.style.left = l + 'px'; t.style.top = tp + 'px'; }
+  function setTip(t, head, rows) { const h = document.createElement('div'); h.className = 'h'; h.textContent = head; t.replaceChildren(h, ...rows.map((r) => { const d = document.createElement('div'); if (Array.isArray(r)) { const sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = r[0]; d.append(sw, document.createTextNode(r[1])); } else d.textContent = r; return d; })); }
+  function textW(svg, s, cls) { const t = svgEl('text', cls ? { class: cls } : {}, svg); t.textContent = s; const w = t.getComputedTextLength(); t.remove(); return w; }
+
+  function drawFan(sim, N, eR) {
+    const box = $('#fan'); box.replaceChildren();
+    const W = Math.max(300, box.clientWidth || 600), H = 270, m = { l: 52, r: 14, t: 10, b: 30 };
+    const B = sim.bands;
+    const ylo = Math.min(0, ...B.map((d) => d.q05), N * eR), yhi = Math.max(0, ...B.map((d) => d.q95), N * eR);
+    const yt = niceTicks(ylo, yhi, 5);
+    const x = (v) => m.l + (v / N) * (W - m.l - m.r), y = (v) => m.t + (1 - (v - yt.lo) / (yt.hi - yt.lo)) * (H - m.t - m.b);
+    const svg = svgEl('svg', { width: '100%', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Simulated cumulative R paths' }, box);
+    yt.ticks.forEach((v) => { svgEl('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: v === 0 ? 'var(--axis)' : 'var(--line)', 'stroke-width': v === 0 ? 1.5 : 1 }, svg); const tx = svgEl('text', { x: m.l - 8, y: y(v), dy: '0.32em', 'text-anchor': 'end' }, svg); tx.textContent = tickLabel(v); });
+    const xt = niceTicks(0, N, Math.max(2, Math.floor((W - m.l - m.r) / 90)));
+    xt.ticks.filter((v) => v >= 0 && v <= N).forEach((v) => { const tx = svgEl('text', { x: x(v), y: H - 10, 'text-anchor': 'middle' }, svg); tx.textContent = tickLabel(v); });
+    const area = (a, b2) => 'M' + [{ x: 0 }].concat(B).map((d, i) => `${x(d.x)},${y(i === 0 ? 0 : d[a])}`).join('L') + 'L' + B.slice().reverse().map((d) => `${x(d.x)},${y(d[b2])}`).join('L') + `L${x(0)},${y(0)}Z`;
+    svgEl('path', { d: area('q95', 'q05'), fill: 'var(--band-outer)', stroke: 'none' }, svg);
+    svgEl('path', { d: area('q75', 'q25'), fill: 'var(--band-inner)', stroke: 'none' }, svg);
+    svgEl('line', { x1: x(0), y1: y(0), x2: x(N), y2: y(N * eR), stroke: 'var(--ink-2)', 'stroke-width': 1.5, 'stroke-dasharray': '5 4', fill: 'none' }, svg);
+    svgEl('path', { d: `M${x(0)},${y(0)}L` + B.map((d) => `${x(d.x)},${y(d.q50)}`).join('L'), fill: 'none', stroke: 'var(--line-main)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+    const t = tipFor(box), dot = svgEl('circle', { r: 4, fill: 'var(--line-main)', stroke: 'var(--surface)', 'stroke-width': 1.5, style: 'display:none' }, svg);
+    const rule = svgEl('line', { y1: m.t, y2: H - m.b, stroke: 'var(--axis)', 'stroke-width': 1, style: 'display:none' }, svg);
+    svgEl('rect', { x: m.l, y: 0, width: W - m.l - m.r, height: H - m.b, fill: 'transparent' }, svg).addEventListener('pointermove', (ev) => {
+      const r = svg.getBoundingClientRect(), sc = r.width / W, mx = (ev.clientX - r.left) / sc;
+      let best = B[0]; for (const d of B) if (Math.abs(x(d.x) - mx) < Math.abs(x(best.x) - mx)) best = d;
+      dot.style.display = ''; dot.setAttribute('cx', x(best.x)); dot.setAttribute('cy', y(best.q50));
+      rule.style.display = ''; rule.setAttribute('x1', x(best.x)); rule.setAttribute('x2', x(best.x));
+      setTip(t, `after ${best.x.toLocaleString('en-US')} trades`, [`median ${fBig(best.q50)}R`, `5–95% ${fBig(best.q05)} to ${fBig(best.q95)}R`, `expected ${fBig(best.x * eR)}R`]);
+      placeTip(box, t, x(best.x) * sc, y(best.q50) * sc);
+    });
+    svg.addEventListener('pointerleave', () => { t.hidden = true; dot.style.display = 'none'; rule.style.display = 'none'; });
+  }
+
+  function drawPP(N, p, b, c) {
+    const box = $('#pp'); box.replaceChildren();
+    const W = Math.max(300, box.clientWidth || 600), H = 270, m = { l: 44, r: 14, t: 10, b: 30 };
+    const ns = new Set([1]); const steps = 44;
+    for (let i = 0; i <= steps; i++) ns.add(Math.max(1, Math.round(Math.exp(Math.log(N) * i / steps))));
+    const pts = [...ns].sort((a, b2) => a - b2).map((n) => ({ n, v: pProfit(n, p, b, c) }));
+    const logN = Math.log(Math.max(N, 2));
+    const x = (n) => m.l + (Math.log(n) / logN) * (W - m.l - m.r), y = (v) => m.t + (1 - v) * (H - m.t - m.b);
+    const svg = svgEl('svg', { width: '100%', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Probability of net profit versus number of trades' }, box);
+    [0, 0.25, 0.5, 0.75, 1].forEach((v) => { svgEl('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: 'var(--line)', 'stroke-width': 1 }, svg); const tx = svgEl('text', { x: m.l - 8, y: y(v), dy: '0.32em', 'text-anchor': 'end' }, svg); tx.textContent = (v * 100) + '%'; });
+    svgEl('line', { x1: m.l, x2: W - m.r, y1: y(0.5), y2: y(0.5), stroke: 'var(--ink-2)', 'stroke-width': 1.2, 'stroke-dasharray': '5 4' }, svg);
+    const xticks = [1, 10, 100, 1000, 10000].filter((v) => v <= N); if (!xticks.includes(N)) xticks.push(N);
+    let lastX = -1e9;
+    xticks.forEach((v) => { const px = x(Math.max(v, 1)); if (px - lastX < 34 && v !== N) return; lastX = px; const tx = svgEl('text', { x: px, y: H - 10, 'text-anchor': v === N ? 'end' : 'middle' }, svg); tx.textContent = v.toLocaleString('en-US'); });
+    svgEl('path', { d: 'M' + pts.map((d) => `${x(d.n)},${y(d.v)}`).join('L'), fill: 'none', stroke: 'var(--line-main)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+    const last = pts[pts.length - 1];
+    svgEl('circle', { cx: x(last.n), cy: y(last.v), r: 4.5, fill: 'var(--line-main)', stroke: 'var(--surface)', 'stroke-width': 1.5 }, svg);
+    const t = tipFor(box), dot = svgEl('circle', { r: 4, fill: 'var(--line-main)', stroke: 'var(--surface)', 'stroke-width': 1.5, style: 'display:none' }, svg);
+    svgEl('rect', { x: m.l, y: 0, width: W - m.l - m.r, height: H - m.b, fill: 'transparent' }, svg).addEventListener('pointermove', (ev) => {
+      const r = svg.getBoundingClientRect(), sc = r.width / W, mx = (ev.clientX - r.left) / sc;
+      let best = pts[0]; for (const d of pts) if (Math.abs(x(d.n) - mx) < Math.abs(x(best.n) - mx)) best = d;
+      dot.style.display = ''; dot.setAttribute('cx', x(best.n)); dot.setAttribute('cy', y(best.v));
+      setTip(t, `${best.n.toLocaleString('en-US')} trades`, [`P(net profit) ${fP(best.v)}`]);
+      placeTip(box, t, x(best.n) * sc, y(best.v) * sc);
+    });
+    svg.addEventListener('pointerleave', () => { t.hidden = true; dot.style.display = 'none'; });
+  }
+
+  // ---------- predictor ----------
+  function read() {
+    const num = (id, lo, hi, def) => { const v = parseFloat($(id).value); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : def; };
+    state.p = num('#in-p', 0.1, 99.9, 55) / 100; state.b = num('#in-b', 0.05, 20, 1);
+    state.n = Math.round(num('#in-n', 1, 20000, 1000)); state.c = num('#in-c', 0, 1, 0);
+    state.usd = num('#in-usd', 1, 1e5, 100); state.dd = num('#in-dd', 1, 1e7, 1500); state.tgt = num('#in-tgt', 1, 1e7, 1500);
+  }
+  function row(dl, label, value, sub, cls) {
+    const dt = document.createElement('dt'); dt.textContent = label;
+    const dd = document.createElement('dd'); const v = document.createElement('span'); v.textContent = value; if (cls) v.className = cls; dd.append(v);
+    dl.append(dt, dd);
+    if (sub) { const sd = document.createElement('dd'); sd.className = 'sub'; const s = document.createElement('small'); s.textContent = sub; sd.append(s); dl.append(sd); }
+  }
+  function compute() {
+    read();
+    const { p, b, n: N, c, usd, dd } = state, e = E(p, b, c), bep = be(b, c), ddR = dd / usd;
+    const bn = binom(N, p, b, c), q = 1 - p;
+    const sMed = streakQ(N, q, 0.5), s95 = streakQ(N, q, 0.95);
+    const sim = simulate(N, p, b, c, ddR);
+    const H = $('#headline'); H.replaceChildren();
+    const lead = document.createElement('b');
+    lead.textContent = `${fPct(p)} at 1:${+b.toFixed(2)}: ${fP(bn.pProfit)} chance the next ${N.toLocaleString('en-US')} trades end net positive.`;
+    H.append(lead, document.createTextNode(' ' + (e > 1e-9 ? `The win rate is ${((p - bep) * 100).toFixed(1)} pp above breakeven (${fPct(bep)}), so the odds rise toward 100% as N grows.` :
+      e < -1e-9 ? `The win rate is ${((bep - p) * 100).toFixed(1)} pp below breakeven (${fPct(bep)}), so the odds fall toward 0% as N grows.` :
+      `The win rate sits exactly on breakeven (${fPct(bep)}); the result is a coin flip at any N.`)));
+    const S = $('#stats'); S.replaceChildren();
+    row(S, 'Edge per trade', `${fR(e, 3)}R`, `${fUSD(e * usd)} at ${fUSD(usd).replace('+', '')} per R`, e > 1e-9 ? 'pos-t big' : e < -1e-9 ? 'neg-t big' : 'big');
+    row(S, 'Breakeven win rate', fPct(bep), `margin ${minus(((p - bep) * 100 >= 0 ? '+' : '') + ((p - bep) * 100).toFixed(1))} pp`);
+    row(S, `Expected after ${N.toLocaleString('en-US')}`, `${fBig(N * e)}R`, fUSD(N * e * usd));
+    row(S, 'P(net profit)', fP(bn.pProfit), `P(net loss or flat) ${fP(1 - bn.pProfit)}`, bn.pProfit >= 0.5 ? 'pos-t big' : 'neg-t big');
+    row(S, 'Outcome, 5th–95th pct', `${fBig(bn.q[0.05])} to ${fBig(bn.q[0.95])}R`, `median ${fBig(bn.q[0.5])}R · ${fUSD(bn.q[0.05] * usd)} to ${fUSD(bn.q[0.95] * usd)}`);
+    row(S, 'Wins needed to finish green', bn.km > N ? 'not reachable' : `≥ ${bn.km.toLocaleString('en-US')} of ${N.toLocaleString('en-US')}`, `fewest wins for all ${N.toLocaleString('en-US')} trades to end above $0 · expected ${Math.round(p * N).toLocaleString('en-US')} · 90% range ${bn.wq[0.05].toLocaleString('en-US')}–${bn.wq[0.95].toLocaleString('en-US')}`);
+    const tR = state.tgt / usd, kT = Math.max(0, Math.ceil((tR + N * (1 + c)) / (1 + b) - 1e-9)), pT = tailGE(N, p, kT);
+    row(S, `Wins needed to reach the ${fMoney(state.tgt)} target`, kT > N ? 'not reachable' : `≥ ${kT.toLocaleString('en-US')} of ${N.toLocaleString('en-US')}`, `${fMoney(state.tgt)} = ${tR.toFixed(1)}R at ${fMoney(usd)} per trade · P(the ${N.toLocaleString('en-US')} trades end at or above it) ${fP(pT)} · odds with the drawdown in PASS below`);
+    row(S, 'Longest losing streak', `median ${sMed}`, `95% of runs stay at or below ${s95}`);
+    row(S, 'Max drawdown (simulated)', `median ${sim.ddMed.toFixed(1)}R`, `95th pct ${sim.dd95.toFixed(1)}R · ${sim.P.toLocaleString('en-US')} paths`);
+    row(S, `P(drawdown ≥ ${fUSD(dd).replace('+', '')})`, fP(sim.pDD), `= ${ddR.toFixed(1)}R at ${fUSD(usd).replace('+', '')} per trade`, sim.pDD > 0.5 ? 'neg-t' : '');
+    $('#fan-sub').textContent = `${sim.P.toLocaleString('en-US')} simulated paths`;
+    drawFan(sim, N, e); drawPP(N, p, b, c);
+    [...$('#n-presets').children].forEach((bt) => bt.setAttribute('aria-pressed', String(+bt.dataset.n === N)));
+    scheduleLower();
+  }
+  let timer = null;
+  function schedule() { clearTimeout(timer); timer = setTimeout(compute, 90); }
+
+  // =====================================================================================================
+  // LOWER SECTION: real-time trade simulator, trade log, position sizing, Monte Carlo, prop challenge
+  // =====================================================================================================
+  const MODES = [
+    { id: 'fixed', name: 'Fixed $', short: 'Fixed', color: 'var(--s-fixed)' },
+    { id: 'q', name: '¼ of optimal', short: '¼ f*', k: 0.25, color: 'var(--s-q)' },
+    { id: 'h', name: '½ of optimal', short: '½ f*', k: 0.5, color: 'var(--s-h)' },
+    { id: 'f', name: 'Optimal f*', short: 'f*', k: 1, color: 'var(--s-f)' },
+    { id: 'd', name: '2× optimal', short: '2× f*', k: 2, color: 'var(--s-2)' },
+  ];
+  const modeLabel = (md, usd) => (md.id === 'fixed' ? `Fixed ${fMoney(usd)}` : md.name);
+  const TS = { bal: 25000, n: 250, passType: 'lock', passMax: 250, passNow: null, passPts: null, ki: null, logMode: 'fixed', chartMode: 'fixed' };
+  const modeF = (md, ki) => (md.k ? Math.min(md.k * ki.fstar, 0.999 * ki.fmax) : 0);
+  const UNIT_MS = { s: 1000, m: 60000, h: 3600000, d: 86400000 };
+  const UNIT_NAME = { s: ['second', 'seconds'], m: ['minute', 'minutes'], h: ['hour', 'hours'], d: ['day', 'days'] };
+  const RATE_PRESETS = [[0.1, 's', '0.1 sec'], [1, 's', '1 sec'], [1, 'm', '1 min'], [1, 'h', '1 hour'], [1, 'd', '1 day']];
+
+  function readLower() {
+    const num = (id, lo, hi, def) => { const v = parseFloat($(id).value); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : def; };
+    TS.bal = num('#t-bal', 100, 1e9, 25000); TS.n = Math.round(num('#t-n', 10, 5000, 250));
+    TS.passType = $('#pa-type').value || 'lock'; TS.passMax = Math.round(num('#pa-max', 1, 2000, 250));
+  }
+  function readRate() {
+    const v = parseFloat($('#t-every').value), u = $('#t-unit').value;
+    if (!Number.isFinite(v) || v <= 0 || !UNIT_MS[u]) return null;
+    return { every: Math.min(999, Math.max(0.01, v)), unit: u };
+  }
+
+  // exact final-balance distribution for compounding at a fixed fraction f (the order of wins does not matter)
+  function fracStats(f, N, p, ki, bal) {
+    const lb = Math.log(bal);
+    if (f <= 0) return { g: 0, lnMed: lb, pBelow: 0, pHalf: 0 };
+    const lu = Math.log1p(f * ki.w), ld = Math.log1p(-f * ki.l), qs = binomQ(N, p, [0.5]);
+    const kb = Math.ceil((N * -ld) / (lu - ld) - 1e-9);           // fewest wins to finish at or above the start
+    const alpha = ki.fstar > 0 ? f / ki.fstar : Infinity;
+    return { g: p * lu + (1 - p) * ld, lnMed: lb + qs[0.5] * lu + (N - qs[0.5]) * ld, pBelow: 1 - tailGE(N, p, kb), pHalf: alpha >= 2 ? 1 : Math.pow(0.5, 2 / alpha - 1) };
+  }
+  const swatch = (color) => { const s = document.createElement('span'); s.className = 'sw'; s.style.background = color; return s; };
+  const sideCls = (v) => (v > 1e-12 ? 'pos-t' : v < -1e-12 ? 'neg-t' : '');
+
+  // ---------- position sizing ----------
+  function renderSizing(ki) {
+    const N = TS.n, bal = TS.bal, usd = state.usd, p = state.p;
+    const fu = usd / bal, alphaU = ki.fstar > 0 ? fu / ki.fstar : Infinity;
+    $('#k-meta').textContent = `start ${fMoney(bal)} · ${N.toLocaleString('en-US')} trades`;
+    const H = $('#k-head'); H.replaceChildren();
+    const b1 = document.createElement('b');
+    if (ki.fstar <= 0) {
+      b1.textContent = `No edge at ${fPct(p)} · 1:${+state.b.toFixed(2)}, so the growth-optimal size is 0%.`;
+      H.append(b1, document.createTextNode(` Expectancy is ${fR(ki.e, 3)}R per trade. Every compounding size shrinks the median balance, so the size that grows fastest is no trade at all.`));
+    } else {
+      b1.textContent = `The growth-optimal size f* is ${fK2(ki.fstar)} of equity per trade at ${fPct(p)} · 1:${+state.b.toFixed(2)}.`;
+      H.append(b1, document.createTextNode(` Your ${fMoney(usd)} on ${fMoney(bal)} is ${fK2(fu)} of equity, or ${alphaU < 0.1 ? alphaU.toFixed(3) : alphaU.toFixed(2)}× f*.` +
+        (alphaU >= 2 ? ' That is past 2× f*, where the median balance shrinks even with an edge.' : alphaU > 1 ? ' That is over-betting: more risk and less growth than f*.' : alphaU < 0.1 ? ' Very safe, and very slow to compound.' : '')));
+    }
+    const T = $('#k-table'); T.replaceChildren();
+    const hr = document.createElement('tr');
+    ['Position size', 'Risk / trade', 'Growth / trade', `Median after ${N.toLocaleString('en-US')}`, 'P(below start)', 'P(ever −50%)'].forEach((h) => { const th = document.createElement('th'); th.textContent = h; hr.append(th); });
+    const thead = document.createElement('thead'); thead.append(hr); T.append(thead);
+    const tb = document.createElement('tbody');
+    const cell = (tr, main, sub, cls) => { const td = document.createElement('td'); if (cls) td.className = cls; td.append(document.createTextNode(main)); if (sub) { const s = document.createElement('small'); s.textContent = sub; td.append(s); } tr.append(td); return td; };
+    for (const md of MODES) {
+      const tr = document.createElement('tr');
+      const td0 = document.createElement('td'); td0.append(swatch(md.color), document.createTextNode(modeLabel(md, usd))); tr.append(td0);
+      if (md.id === 'fixed') {
+        const qs = binomQ(N, p, [0.5]), fin = bal + usd * (qs[0.5] * (1 + state.b) - N * (1 + state.c));
+        const pBelow = 1 - tailGE(N, p, Math.ceil((N * (1 + state.c)) / (1 + state.b) - 1e-9));
+        const mu = ki.e, v = p * ki.w * ki.w + (1 - p) * ki.l * ki.l - mu * mu, D = (0.5 * bal) / usd;
+        const pHalf = mu <= 0 ? 1 : Math.exp((-2 * mu * D) / v);
+        cell(tr, fMoney(usd), fK2(fu) + ' of start');
+        cell(tr, fSignUSD(mu * usd), 'no compounding', sideCls(mu));
+        cell(tr, fin <= 0 ? '$0' : fMoney(fin), fin <= 0 ? 'bust' : '');
+        cell(tr, fP(pBelow)); cell(tr, fP(pHalf));
+      } else {
+        const f = modeF(md, ki), s = fracStats(f, N, p, ki, bal);
+        cell(tr, f > 0 ? fK2(f) : '0%', f > 0 ? fMoney(f * bal) + ' at start' : 'no trade');
+        const gr = Math.expm1(s.g);
+        cell(tr, f > 0 ? signedPct(gr) : '—', f > 0 ? 'median, compounding' : '', f > 0 ? sideCls(gr) : 'dim');
+        cell(tr, fMoneyLn(s.lnMed)); cell(tr, f > 0 ? fP(s.pBelow) : '—'); cell(tr, f > 0 ? fP(s.pHalf) : '—');
+      }
+      tb.append(tr);
+    }
+    T.append(tb);
+    drawSizingCurve();
+  }
+
+  function drawSizingCurve() {
+    const ki = TS.ki; const box = $('#k-curve'); box.replaceChildren(); if (!ki) return;
+    const fu = state.usd / TS.bal, fs = ki.fstar;
+    const W = Math.max(280, box.clientWidth || 480), H = 240, m = { l: 56, r: 16, t: 22, b: 30 };
+    let xmax = Math.max(fs * 2.6, Math.min(fu * 1.3, 0.98 * ki.fmax), 0.01);
+    xmax = Math.min(xmax, 0.98 * ki.fmax);
+    const n = 240, pts = [];
+    for (let i = 0; i <= n; i++) { const f = (xmax * i) / n; pts.push({ f, g: 100 * ki.g(f) }); }
+    const finite = pts.map((d) => d.g).filter(Number.isFinite);
+    const gpk = fs > 0 ? 100 * ki.g(fs) : 0;
+    let yhi, ylo;
+    if (fs > 0) { yhi = gpk * 1.18; ylo = Math.max(Math.min(...finite), -2.5 * gpk); ylo = Math.min(ylo, -0.4 * gpk); }
+    else { ylo = Math.min(...finite); yhi = Math.max(-ylo * 0.12, 1e-4); }
+    const yt = niceTicks(ylo, yhi, 4), yd = decFor(yt.step);
+    const x = (f) => m.l + (f / xmax) * (W - m.l - m.r), y = (v) => m.t + (1 - (v - yt.lo) / (yt.hi - yt.lo)) * (H - m.t - m.b);
+    const svg = svgEl('svg', { width: '100%', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Median growth per trade by fraction of equity risked' }, box);
+    const defs = svgEl('defs', {}, svg), cp = svgEl('clipPath', { id: 'kclip' }, defs);
+    svgEl('rect', { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: '#000' }, cp);
+    yt.ticks.forEach((v) => {
+      svgEl('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: Math.abs(v) < 1e-12 ? 'var(--axis)' : 'var(--line)', 'stroke-width': Math.abs(v) < 1e-12 ? 1.5 : 1 }, svg);
+      const tx = svgEl('text', { x: m.l - 8, y: y(v), dy: '0.32em', 'text-anchor': 'end' }, svg); tx.textContent = (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(yd) + '%';
+    });
+    const xt = niceTicks(0, xmax, Math.max(2, Math.floor((W - m.l - m.r) / 80))), xd = decFor(xt.step * 100);
+    xt.ticks.filter((v) => v >= 0 && v <= xmax + 1e-12).forEach((v) => { const tx = svgEl('text', { x: x(v), y: H - 10, 'text-anchor': 'middle' }, svg); tx.textContent = (100 * v).toFixed(xd) + '%'; });
+    const gpath = svgEl('g', { 'clip-path': 'url(#kclip)' }, svg);
+    svgEl('path', { d: 'M' + pts.filter((d) => Number.isFinite(d.g)).map((d) => `${x(d.f)},${y(Math.max(d.g, yt.lo - 1))}`).join('L'), fill: 'none', stroke: 'var(--ink)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, gpath);
+    if (fs > 0) {
+      let lastLab = -1e9;
+      [[0.25, '¼ f*'], [0.5, '½ f*'], [1, 'f*'], [2, '2× f*']].forEach(([a, lab]) => {
+        const f = a * fs; if (f > xmax) return;
+        svgEl('line', { x1: x(f), x2: x(f), y1: m.t, y2: H - m.b, stroke: 'var(--axis)', 'stroke-width': 1, 'stroke-dasharray': '3 3' }, svg);
+        svgEl('circle', { cx: x(f), cy: y(100 * ki.g(f)), r: 3, fill: 'var(--ink)' }, svg);
+        if (x(f) - lastLab > 34) { const tx = svgEl('text', { x: x(f), y: m.t - 8, 'text-anchor': 'middle' }, svg); tx.textContent = lab; lastLab = x(f); }
+      });
+    }
+    if (fu <= xmax) {
+      const gu = 100 * ki.g(fu);
+      if (Number.isFinite(gu)) {
+        svgEl('circle', { cx: x(fu), cy: y(Math.max(gu, yt.lo)), r: 5, fill: 'var(--accent)', stroke: 'var(--surface)', 'stroke-width': 1.5 }, svg);
+        const tx = svgEl('text', { x: x(fu) + 8, y: y(Math.max(gu, yt.lo)) + 14, class: 'lab' }, svg); tx.textContent = 'you';
+      }
+    } else {
+      const tx = svgEl('text', { x: W - m.r, y: m.t + 12, 'text-anchor': 'end', class: 'lab' }, svg); tx.textContent = `you: ${fK2(fu)} →`;
+    }
+    const t = tipFor(box), dot = svgEl('circle', { r: 4, fill: 'var(--ink)', stroke: 'var(--surface)', 'stroke-width': 1.5, style: 'display:none' }, svg);
+    svgEl('rect', { x: m.l, y: 0, width: W - m.l - m.r, height: H - m.b, fill: 'transparent' }, svg).addEventListener('pointermove', (ev) => {
+      const r = svg.getBoundingClientRect(), sc = r.width / W, mx = (ev.clientX - r.left) / sc;
+      const i = Math.max(0, Math.min(n, Math.round(((mx - m.l) / (W - m.l - m.r)) * n))), d = pts[i];
+      if (!Number.isFinite(d.g)) return;
+      dot.style.display = ''; dot.setAttribute('cx', x(d.f)); dot.setAttribute('cy', y(Math.max(d.g, yt.lo)));
+      setTip(t, `risk ${fK2(d.f)} of equity${fs > 0 ? ` · ${(d.f / fs).toFixed(2)}× f*` : ''}`, [`median growth per trade ${signedPct(Math.expm1(d.g / 100))}`, `median per 100 trades ${signedPct(Math.expm1(d.g))}`]);
+      placeTip(box, t, x(d.f) * sc, y(Math.max(d.g, yt.lo)) * sc);
+    });
+    svg.addEventListener('pointerleave', () => { t.hidden = true; dot.style.display = 'none'; });
+  }
+
+  // ---------- one random trade sequence, valued under every position size (compounding balances kept as logs) ----------
+  function simPath(N, p, ki, bal, usd, seed) {
+    const rnd = mulberry32(seed), win = new Uint8Array(N);
+    for (let t = 0; t < N; t++) win[t] = rnd() < p ? 1 : 0;
+    const modes = {}, lb = Math.log(bal);
+    for (const md of MODES) {
+      const ln = new Float64Array(N + 1); ln[0] = lb;
+      if (md.id === 'fixed') {
+        const eq = new Float64Array(N + 1); let e = bal, bust = -1; eq[0] = bal;
+        for (let t = 0; t < N; t++) {
+          if (bust < 0 && e < usd * ki.l) bust = t;
+          if (bust < 0) e += usd * (win[t] ? ki.w : -ki.l);
+          eq[t + 1] = e; ln[t + 1] = Math.log(Math.max(e, 1e-9));
+        }
+        modes.fixed = { ln, eq, f: 0, bust };
+      } else {
+        const f = modeF(md, ki), lu = Math.log1p(f * ki.w), ld = Math.log1p(-f * ki.l);
+        for (let t = 0; t < N; t++) ln[t + 1] = ln[t] + (win[t] ? lu : ld);
+        modes[md.id] = { ln, f, lu, ld, bust: -1 };
+      }
+    }
+    return { win, modes, ki };
+  }
+  function logTicks10(a, b) {
+    const span = b - a;
+    if (span > 6) { const step = Math.ceil(span / 6), out = []; for (let d = Math.ceil(a); d <= b + 1e-9; d += step) out.push(d); return out; }
+    const sets = [[1], [1, 2, 5], [1, 1.5, 2, 3, 5, 7], [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8]];
+    for (const set of sets) {
+      const out = [];
+      for (let d = Math.floor(a); d <= Math.ceil(b); d++) for (const k of set) { const v = d + Math.log10(k); if (v >= a - 1e-9 && v <= b + 1e-9) out.push(v); }
+      if (out.length >= 3) return out.length > 8 ? out.filter((_, i) => i % 2 === 0) : out;
+    }
+    const lo = Math.pow(10, a), hi = Math.pow(10, b);
+    return niceTicks(lo, hi, 4).ticks.filter((v) => v >= lo && v <= hi && v > 0).map(Math.log10);
+  }
+
+  // ---------- real-time run: a seeded sequence plus a clock; kept in this browser so it survives a reload ----------
+  const RUN_KEY = 'rr-matrix-sim-run-v1';
+  const store = {
+    get() { try { return JSON.parse(localStorage.getItem(RUN_KEY) || 'null'); } catch (e) { return null; } },
+    set(v) { try { if (v) localStorage.setItem(RUN_KEY, JSON.stringify(v)); else localStorage.removeItem(RUN_KEY); } catch (e) { /* storage blocked: the run still works for this visit */ } },
+  };
+  let RUN = null, PATH = null, PATHKEY = '', CONE = null, CONEKEY = '';
+  const PKEYS = ['p', 'b', 'c', 'usd', 'bal', 'n'];
+  const newSeed = () => ((Math.floor(Math.random() * 2147483647) ^ Date.now()) >>> 0) || 1;
+  const curParams = () => ({ p: state.p, b: state.b, c: state.c, usd: state.usd, bal: TS.bal, n: TS.n });
+  const sameParams = (a, b) => PKEYS.every((k) => Math.abs(a[k] - b[k]) < 1e-9);
+  function makeRun(seed, auto) { const r = readRate() || { every: 1, unit: 's' }; return { v: 1, seed, ...curParams(), every: r.every, unit: r.unit, state: 'ready', t0: 0, anchor: 0, auto: !!auto }; }
+  function validRun(r) {
+    return !!r && r.v === 1 && PKEYS.concat(['seed', 'every', 't0', 'anchor']).every((k) => Number.isFinite(r[k])) && r.p > 0 && r.p < 1 && r.b > 0 && r.c >= 0 && r.usd > 0 && r.bal > 0 &&
+      r.n >= 10 && r.n <= 5000 && r.every > 0 && !!UNIT_MS[r.unit] && ['ready', 'running', 'paused', 'done'].includes(r.state);
+  }
+  const save = () => store.set(RUN && !RUN.auto ? RUN : null);
+  const intervalMs = () => RUN.every * UNIT_MS[RUN.unit];
+  const tNow = (now) => (RUN.state === 'running' ? Math.min(RUN.n, RUN.t0 + Math.floor((now - RUN.anchor) / intervalMs())) : Math.min(RUN.n, RUN.t0));
+  function ensurePath() {
+    const key = [RUN.seed].concat(PKEYS.map((k) => RUN[k])).join('|');
+    if (key === PATHKEY) return;
+    PATH = simPath(RUN.n, RUN.p, sizeInfo(RUN.p, RUN.b, RUN.c), RUN.bal, RUN.usd, RUN.seed); PATHKEY = key;
+  }
+  function ensureCone() {                 // exact quantiles of the fixed-risk balance after t trades, sampled along the run
+    const key = PKEYS.map((k) => RUN[k]).join('|');
+    if (key === CONEKEY) return;
+    const { n, p, b, c, usd, bal } = RUN, K = Math.min(n, 160), out = [];
+    const QS = [0.01, 0.05, 0.25, 0.5, 0.75, 0.95, 0.99];
+    for (let i = 0; i <= K; i++) {
+      const t = Math.round((i * n) / K);
+      if (t === 0) { out.push({ t: 0, q01: bal, q05: bal, q25: bal, q50: bal, q75: bal, q95: bal, q99: bal }); continue; }
+      const q = binomQ(t, p, QS), v = (k) => bal + usd * (k * (1 + b) - t * (1 + c));
+      out.push({ t, q01: v(q[0.01]), q05: v(q[0.05]), q25: v(q[0.25]), q50: v(q[0.5]), q75: v(q[0.75]), q95: v(q[0.95]), q99: v(q[0.99]) });
+    }
+    CONE = out; CONEKEY = key;
+  }
+  function startRun() { RUN.state = 'running'; RUN.anchor = Date.now(); }
+  function newRun(autostart) {
+    readLower(); RUN = makeRun(newSeed(), false); ensurePath(); ensureCone();
+    if (autostart) startRun();
+    save(); drawnT = -1; renderLive(true); loop();
+  }
+  function goBtn() {
+    if (!RUN) return;
+    RUN.auto = false;
+    if (RUN.state === 'ready' || RUN.state === 'paused') startRun();
+    else if (RUN.state === 'running') { RUN.t0 = tNow(Date.now()); RUN.state = 'paused'; }
+    else { newRun(true); return; }
+    save(); renderLive(true); loop();
+  }
+  function skipEnd() { if (!RUN) return; RUN.auto = false; RUN.t0 = RUN.n; RUN.state = 'done'; save(); renderLive(true); }
+  function applyRate() {
+    const r = readRate(); if (!r || !RUN) return;
+    if (RUN.state === 'running') { const now = Date.now(); RUN.t0 = tNow(now); RUN.anchor = now; }
+    RUN.every = r.every; RUN.unit = r.unit; RUN.auto = false;
+    markPresets(); save(); renderLive(true); loop();
+  }
+  function markPresets() {
+    const r = readRate();
+    [...$('#rate-presets').children].forEach((bt) => bt.setAttribute('aria-pressed', String(!!r && Math.abs(+bt.dataset.every - r.every) < 1e-9 && bt.dataset.unit === r.unit)));
+  }
+  function syncRun() {           // called whenever the inputs change
+    if (!RUN) RUN = makeRun(newSeed(), false);
+    const cur = curParams();
+    if (!sameParams(RUN, cur)) {
+      if (RUN.auto) { const st = RUN.state; RUN = makeRun(RUN.seed, true); if (st === 'running' || st === 'done') startRun(); drawnT = -1; }
+      else if (RUN.state === 'ready') { Object.assign(RUN, cur); save(); drawnT = -1; }
+    }
+    ensurePath(); ensureCone(); renderLive(true); loop();
+  }
+
+  let loopTimer = null, drawnT = -1, loggedT = -1, tiledT = -1, lastDraw = 0, lastLog = 0;
+  function loop() {
+    clearTimeout(loopTimer);
+    if (!RUN || RUN.state !== 'running') return;
+    const now = Date.now(), t = tNow(now);
+    if (t >= RUN.n) { RUN.t0 = RUN.n; RUN.state = 'done'; save(); renderLive(true); return; }
+    renderLive(false, now);
+    const iv = intervalMs(), until = iv - ((now - RUN.anchor) % iv);
+    loopTimer = setTimeout(loop, Math.max(16, Math.min(until + 2, 250)));
+  }
+  function renderLive(force, now) {
+    if (!RUN || !PATH) return;
+    now = now || Date.now();
+    const t = tNow(now);
+    if (t !== drawnT && (force || now - lastDraw >= 40)) { drawLive(t); drawnT = t; lastDraw = now; }
+    if (t !== loggedT && (force || now - lastLog >= 150)) { renderLog(t, loggedT); loggedT = t; lastLog = now; }
+    else if (force) renderLog(t, t);
+    if (t !== tiledT || force) { renderTiles(t); tiledT = t; }
+    renderStatus(t, now);
+    if (force) { renderRunInfo(); renderButtons(t); }
+    else if (t >= RUN.n) renderButtons(t);
+  }
+
+  function fDur(ms) {
+    if (!Number.isFinite(ms)) return '—';
+    const s = ms / 1000;
+    if (s < 1) return s.toFixed(1) + 's';
+    if (s < 60) return Math.ceil(s) + 's';
+    const m = Math.floor(s / 60), h = Math.floor(s / 3600), d = Math.floor(s / 86400);
+    if (s < 3600) return `${m}m ${String(Math.floor(s % 60)).padStart(2, '0')}s`;
+    if (s < 86400) return `${h}h ${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}m`;
+    return `${d}d ${Math.floor((s % 86400) / 3600)}h`;
+  }
+  function fEta(rem) {
+    if (rem < 3600000) return `in ${fDur(rem)}`;
+    let when;
+    try { when = new Date(Date.now() + rem).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { when = new Date(Date.now() + rem).toString().slice(0, 21); }
+    return `${when} (in ${fDur(rem)})`;
+  }
+  const rateText = (r) => `1 trade every ${+r.every.toPrecision(4)} ${UNIT_NAME[r.unit][r.every === 1 ? 0 : 1]}`;
+  function renderStatus(t, now) {
+    const S = $('#t-status'), st = t >= RUN.n ? 'done' : RUN.state, iv = intervalMs();
+    const pill = document.createElement('span'); pill.className = 'pill ' + st; pill.textContent = { ready: 'Ready', running: 'Running', paused: 'Paused', done: 'Finished' }[st];
+    let txt = rateText(RUN);
+    if (st === 'running') {
+      const until = iv - ((now - RUN.anchor) % iv), rem = (RUN.n - t - 1) * iv + until;
+      txt += iv < 1000 ? ` · about ${(1000 / iv).toFixed(iv < 100 ? 0 : 1)} trades a second` : ` · next trade in ${fDur(until)}`;
+      txt += ` · finishes ${fEta(rem)}`;
+    } else if (st === 'ready') txt += ` · a full run of ${RUN.n.toLocaleString('en-US')} trades takes ${fDur(RUN.n * iv)}`;
+    else if (st === 'paused') txt += ` · ${(RUN.n - t).toLocaleString('en-US')} trades left (${fDur((RUN.n - t) * iv)})`;
+    else txt += ` · all ${RUN.n.toLocaleString('en-US')} trades drawn`;
+    if (RUN.auto) txt += ' · demo run: follows your inputs until you press a button here';
+    const span = document.createElement('span'); span.textContent = txt;
+    S.replaceChildren(pill, span);
+  }
+  function renderButtons(t) {
+    const st = t >= RUN.n ? 'done' : RUN.state;
+    $('#t-go').textContent = { ready: 'Start', running: 'Pause', paused: 'Resume', done: 'Run again' }[st];
+    $('#t-skip').disabled = st === 'done';
+  }
+  function renderRunInfo() {
+    const r = RUN;
+    $('#t-runinfo').textContent = `This run: ${fPct(r.p)} win rate · 1:${+r.b.toFixed(2)} · cost ${r.c.toFixed(2)}R · ${fMoney(r.usd)} risk per trade · start ${fMoney(r.bal)} · ${r.n.toLocaleString('en-US')} trades · sequence #${String(r.seed % 100000).padStart(5, '0')}`;
+    const N = $('#t-notice'), differ = !r.auto && r.state !== 'ready' && !sameParams(r, curParams());
+    N.hidden = !differ;
+    if (differ) {
+      const s = document.createElement('span'); s.textContent = 'Your inputs no longer match this run. A run keeps the settings it started with.';
+      const bt = document.createElement('button'); bt.type = 'button'; bt.className = 'btn'; bt.textContent = 'New run with current inputs';
+      bt.addEventListener('click', () => newRun(RUN.state === 'running'));
+      N.replaceChildren(s, bt);
+    }
+  }
+  const ordinal = (n) => { const v = n % 100; return n + (v >= 11 && v <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'); };
+  function runStats(t) {
+    const eq = PATH.modes.fixed.eq, win = PATH.win;
+    let w = 0, cur = -1, run = 0, lw = 0, ll = 0, pk = eq[0], mdd = 0;
+    for (let i = 1; i <= t; i++) {
+      const x = win[i - 1]; w += x;
+      if (x === cur) run++; else { cur = x; run = 1; }
+      if (x) lw = Math.max(lw, run); else ll = Math.max(ll, run);
+      if (eq[i] > pk) pk = eq[i]; else mdd = Math.max(mdd, pk - eq[i]);
+    }
+    return { w, cur, run, lw, ll, dd: pk - eq[t], mdd, bal: eq[t], stopped: PATH.modes.fixed.bust >= 0 && t > PATH.modes.fixed.bust };
+  }
+  function renderTiles(t) {
+    const r = RUN, s = runStats(t), T = $('#t-tiles');
+    const tile = (k, v, sub, cls) => { const d = document.createElement('div'); d.className = 'tile'; const a = document.createElement('span'); a.className = 'k'; a.textContent = k; const b2 = document.createElement('span'); b2.className = 'v' + (cls ? ' ' + cls : ''); b2.textContent = v; const c2 = document.createElement('span'); c2.className = 's'; c2.textContent = sub; d.append(a, b2, c2); return d; };
+    const pl = s.bal - r.bal;
+    const out = [
+      tile('Trade', `${t.toLocaleString('en-US')} / ${r.n.toLocaleString('en-US')}`, `${Math.round((100 * t) / r.n)}% of the run`),
+      tile(`Balance at ${fMoney(r.usd)} risk`, fMoney(s.bal), s.stopped ? 'stopped: one more loss is unaffordable' : `${fSignUSD(pl)} · ${fR(pl / r.usd, 1)}R`, sideCls(pl)),
+      tile('Wins / losses', `${s.w.toLocaleString('en-US')} / ${(t - s.w).toLocaleString('en-US')}`, t ? `${fPct(s.w / t)} so far vs ${fPct(r.p)} expected` : 'no trades yet'),
+    ];
+    if (t > 0) {
+      const ge = tailGE(t, r.p, s.w), gt = tailGE(t, r.p, s.w + 1), pc = 1 - ge + 0.5 * (ge - gt), pr = Math.round(100 * pc);
+      out.push(tile('Run percentile', ordinal(Math.max(1, Math.min(99, pr))), `${pr < 1 ? 'fewer than 1%' : pr > 99 ? 'more than 99%' : pr + '%'} of possible runs had fewer wins by now`));
+    } else out.push(tile('Run percentile', '—', 'ranks this run against every possible run'));
+    out.push(tile('Drawdown', s.dd > 1e-9 ? '−' + fMoney(s.dd) : '$0', `max so far ${s.mdd > 1e-9 ? '−' + fMoney(s.mdd) : '$0'} · ${(s.mdd / r.usd).toFixed(1)}R`, s.dd > 1e-9 ? 'neg-t' : ''));
+    out.push(tile('Current streak', t ? `${s.run} ${s.cur ? (s.run > 1 ? 'wins' : 'win') : s.run > 1 ? 'losses' : 'loss'}` : '—', `longest: ${s.lw} wins · ${s.ll} losses`, t ? (s.cur ? 'pos-t' : 'neg-t') : ''));
+    T.replaceChildren(...out);
+  }
+
+  function renderKeys() {
+    const K = $('#t-keys'); K.replaceChildren();
+    const key = (iCls, iStyle, text) => { const s = document.createElement('span'); const i = document.createElement('i'); if (iCls) i.className = iCls; if (iStyle) i.style.cssText = iStyle; s.append(i, document.createTextNode(text)); K.append(s); };
+    if (TS.chartMode === 'fixed') {
+      key('', 'background: var(--band-outer)', '90% of runs'); key('', 'background: var(--band-inner)', '50% of runs');
+      key('dash', '', 'median run'); key('ink', '', 'this run');
+    } else {
+      MODES.forEach((md) => { const f = PATH ? PATH.modes[md.id].f : 0; key('', `background: ${md.color}; height: 3px`, md.id === 'fixed' ? `Fixed ${fMoney(RUN.usd)}` : `${md.name} ${fK2(f)}`); });
+    }
+  }
+  function drawLive(t) {
+    const box = $('#t-chart'); box.replaceChildren(); if (!PATH) return;
+    renderKeys();
+    if (TS.chartMode === 'fixed') drawLiveFixed(box, t); else drawLiveAll(box, t);
+  }
+  function drawLiveFixed(box, t) {
+    const eq = PATH.modes.fixed.eq, N = RUN.n, C = CONE, win = PATH.win;
+    const W = Math.max(300, box.clientWidth || 640), H = 300, m = { l: 60, r: 16, t: 14, b: 30 };
+    let lo = Infinity, hi = -Infinity;
+    for (const d of C) { lo = Math.min(lo, d.q01); hi = Math.max(hi, d.q99); }
+    for (let i = 0; i <= t; i++) { if (eq[i] < lo) lo = eq[i]; if (eq[i] > hi) hi = eq[i]; }
+    const yt = niceTicks(lo, hi, 5);
+    const x = (i) => m.l + (i / N) * (W - m.l - m.r), y = (v) => m.t + (1 - (v - yt.lo) / (yt.hi - yt.lo)) * (H - m.t - m.b);
+    const svg = svgEl('svg', { width: '100%', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Balance after ${t} of ${N} simulated trades, against the range of all possible runs` }, box);
+    yt.ticks.forEach((v) => { svgEl('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: 'var(--line)', 'stroke-width': 1 }, svg); const tx = svgEl('text', { x: m.l - 8, y: y(v), dy: '0.32em', 'text-anchor': 'end' }, svg); tx.textContent = fMoney(v); });
+    const xt = niceTicks(0, N, Math.max(2, Math.floor((W - m.l - m.r) / 80)));
+    xt.ticks.filter((v) => v >= 0 && v <= N).forEach((v) => { const tx = svgEl('text', { x: x(v), y: H - 10, 'text-anchor': 'middle' }, svg); tx.textContent = v.toLocaleString('en-US'); });
+    const band = (a, b2) => 'M' + C.map((d) => `${x(d.t).toFixed(1)},${y(d[a]).toFixed(1)}`).join('L') + 'L' + C.slice().reverse().map((d) => `${x(d.t).toFixed(1)},${y(d[b2]).toFixed(1)}`).join('L') + 'Z';
+    svgEl('path', { d: band('q95', 'q05'), fill: 'var(--band-outer)', stroke: 'none' }, svg);
+    svgEl('path', { d: band('q75', 'q25'), fill: 'var(--band-inner)', stroke: 'none' }, svg);
+    svgEl('line', { x1: m.l, x2: W - m.r, y1: y(RUN.bal), y2: y(RUN.bal), stroke: 'var(--axis)', 'stroke-width': 1.5 }, svg);
+    svgEl('path', { d: 'M' + C.map((d) => `${x(d.t).toFixed(1)},${y(d.q50).toFixed(1)}`).join('L'), fill: 'none', stroke: 'var(--ink-2)', 'stroke-width': 1.2, 'stroke-dasharray': '5 4' }, svg);
+    const stride = Math.max(1, Math.ceil(N / 900)); let d = '';
+    for (let i = 0; i <= t; i += stride) d += (i ? 'L' : 'M') + x(i).toFixed(1) + ',' + y(eq[i]).toFixed(1);
+    if (t % stride) d += 'L' + x(t).toFixed(1) + ',' + y(eq[t]).toFixed(1);
+    svgEl('path', { d, fill: 'none', stroke: 'var(--ink)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+    svgEl('circle', { cx: x(t), cy: y(eq[t]), r: 4.5, fill: 'var(--ink)', stroke: 'var(--surface)', 'stroke-width': 2 }, svg);
+    const lab = fMoney(eq[t]), lw = textW(svg, lab, 'now'), right = x(t) + 10 + lw <= W - m.r;
+    const tx = svgEl('text', { x: right ? x(t) + 10 : x(t) - 10, y: y(eq[t]) - 10, 'text-anchor': right ? 'start' : 'end', class: 'now' }, svg); tx.textContent = lab;
+    const tip = tipFor(box), dot = svgEl('circle', { r: 4, fill: 'var(--ink)', stroke: 'var(--surface)', 'stroke-width': 1.5, style: 'display:none' }, svg);
+    const rule = svgEl('line', { y1: m.t, y2: H - m.b, stroke: 'var(--axis)', 'stroke-width': 1, style: 'display:none' }, svg);
+    svgEl('rect', { x: m.l, y: 0, width: W - m.l - m.r, height: H - m.b, fill: 'transparent' }, svg).addEventListener('pointermove', (ev) => {
+      const r = svg.getBoundingClientRect(), sc = r.width / W, mx = (ev.clientX - r.left) / sc;
+      const i = Math.max(0, Math.min(N, Math.round(((mx - m.l) / (W - m.l - m.r)) * N)));
+      const q = i ? binomQ(i, RUN.p, [0.05, 0.5, 0.95]) : { 0.05: 0, 0.5: 0, 0.95: 0 }, v = (k) => RUN.bal + RUN.usd * (k * (1 + RUN.b) - i * (1 + RUN.c));
+      rule.style.display = ''; rule.setAttribute('x1', x(i)); rule.setAttribute('x2', x(i));
+      const rows = [];
+      if (i <= t) rows.push(`this run ${fMoney(eq[i])}`);
+      rows.push(`median run ${fMoney(i ? v(q[0.5]) : RUN.bal)}`, `90% of runs ${fMoney(i ? v(q[0.05]) : RUN.bal)} – ${fMoney(i ? v(q[0.95]) : RUN.bal)}`);
+      setTip(tip, i === 0 ? 'start' : `trade ${i.toLocaleString('en-US')}${i <= t ? (win[i - 1] ? ' · win' : ' · loss') : ' · not drawn yet'}`, rows);
+      const yy = i <= t ? eq[i] : (i ? v(q[0.5]) : RUN.bal);
+      dot.style.display = ''; dot.setAttribute('cx', x(i)); dot.setAttribute('cy', y(yy));
+      placeTip(box, tip, x(i) * sc, y(yy) * sc);
+    });
+    svg.addEventListener('pointerleave', () => { tip.hidden = true; dot.style.display = 'none'; rule.style.display = 'none'; });
+  }
+  function drawLiveAll(box, t) {
+    const P = PATH, N = RUN.n;
+    const W = Math.max(300, box.clientWidth || 640), H = 300, m = { l: 60, r: 12, t: 14, b: 30 };
+    let lo = Infinity, hi = -Infinity;
+    for (const md of MODES) { const ln = P.modes[md.id].ln; for (let i = 0; i <= Math.max(t, 1); i++) { const v = ln[Math.min(i, N)]; if (v < lo) lo = v; if (v > hi) hi = v; } }
+    let a = lo / Math.LN10, b = hi / Math.LN10; const s0 = Math.log10(RUN.bal);
+    a = Math.max(a, s0 - 6);
+    if (b - a < 0.04) { a -= 0.02; b += 0.02; }
+    const pad = (b - a) * 0.05; a -= pad; b += pad;
+    const svg = svgEl('svg', { width: '100%', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `Balance after ${t} of ${N} simulated trades for five position sizes` }, box);
+    const labs = MODES.map((md) => ({ md, txt: `${md.short} ${fMoneyLn(P.modes[md.id].ln[t])}`, v: P.modes[md.id].ln[t] / Math.LN10 }));
+    const lw = Math.max(...labs.map((l) => textW(svg, l.txt, 'lab'))) + 18;
+    m.r = Math.min(Math.max(12, lw + 10), W * 0.42);
+    const x = (i) => m.l + (i / N) * (W - m.l - m.r), y = (v10) => m.t + (1 - (v10 - a) / (b - a)) * (H - m.t - m.b);
+    const defs = svgEl('defs', {}, svg), cp = svgEl('clipPath', { id: 'sclip' }, defs);
+    svgEl('rect', { x: m.l, y: m.t - 2, width: W - m.l - m.r + 2, height: H - m.t - m.b + 4, fill: '#000' }, cp);
+    logTicks10(a, b).forEach((v) => { svgEl('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: 'var(--line)', 'stroke-width': 1 }, svg); const tx = svgEl('text', { x: m.l - 8, y: y(v), dy: '0.32em', 'text-anchor': 'end' }, svg); tx.textContent = fTick10(v); });
+    if (s0 >= a && s0 <= b) svgEl('line', { x1: m.l, x2: W - m.r, y1: y(s0), y2: y(s0), stroke: 'var(--axis)', 'stroke-width': 1.5, 'stroke-dasharray': '5 4' }, svg);
+    const xt = niceTicks(0, N, Math.max(2, Math.floor((W - m.l - m.r) / 80)));
+    xt.ticks.filter((v) => v >= 0 && v <= N).forEach((v) => { const tx = svgEl('text', { x: x(v), y: H - 10, 'text-anchor': 'middle' }, svg); tx.textContent = v.toLocaleString('en-US'); });
+    const g = svgEl('g', { 'clip-path': 'url(#sclip)' }, svg);
+    const stride = Math.max(1, Math.ceil(N / 900));
+    MODES.forEach((md) => {
+      const ln = P.modes[md.id].ln; let d = '';
+      for (let i = 0; i <= t; i += stride) d += (i ? 'L' : 'M') + x(i).toFixed(1) + ',' + y(Math.max(ln[i] / Math.LN10, a - 1)).toFixed(1);
+      if (t % stride) d += 'L' + x(t).toFixed(1) + ',' + y(Math.max(ln[t] / Math.LN10, a - 1)).toFixed(1);
+      if (t === 0) d += 'L' + (x(0) + 0.1).toFixed(1) + ',' + y(ln[0] / Math.LN10).toFixed(1);
+      svgEl('path', { d, fill: 'none', stroke: md.color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, g);
+    });
+    const ys = labs.map((l) => ({ ...l, py: y(Math.min(b, Math.max(l.v, a))) })).sort((p1, p2) => p1.py - p2.py);
+    for (let i = 1; i < ys.length; i++) if (ys[i].py - ys[i - 1].py < 14) ys[i].py = ys[i - 1].py + 14;
+    const over = ys.length ? ys[ys.length - 1].py - (H - m.b) : 0; if (over > 0) ys.forEach((l) => { l.py -= over; });
+    ys.forEach((l) => {
+      svgEl('line', { x1: x(t) + 6, x2: x(t) + 16, y1: l.py, y2: l.py, stroke: l.md.color, 'stroke-width': 3, 'stroke-linecap': 'round' }, svg);
+      const tx = svgEl('text', { x: x(t) + 20, y: l.py, dy: '0.32em', class: 'lab' }, svg); tx.textContent = l.txt;
+    });
+    const tip = tipFor(box), rule = svgEl('line', { y1: m.t, y2: H - m.b, stroke: 'var(--axis)', 'stroke-width': 1, style: 'display:none' }, svg);
+    svgEl('rect', { x: m.l, y: 0, width: Math.max(1, x(t) - m.l), height: H - m.b, fill: 'transparent' }, svg).addEventListener('pointermove', (ev) => {
+      const r = svg.getBoundingClientRect(), sc = r.width / W, mx = (ev.clientX - r.left) / sc;
+      const i = Math.max(0, Math.min(t, Math.round(((mx - m.l) / (W - m.l - m.r)) * N)));
+      rule.style.display = ''; rule.setAttribute('x1', x(i)); rule.setAttribute('x2', x(i));
+      setTip(tip, `trade ${i.toLocaleString('en-US')}${i ? (P.win[i - 1] ? ' · win' : ' · loss') : ' · start'}`, MODES.map((md) => [md.color, `${md.short} ${fMoneyLn(P.modes[md.id].ln[i])}`]));
+      placeTip(box, tip, x(i) * sc, m.t * sc + 10);
+    });
+    svg.addEventListener('pointerleave', () => { tip.hidden = true; rule.style.display = 'none'; });
+  }
+  function renderLog(t, prevT) {
+    const P = PATH; if (!P) return;
+    const md = P.modes[TS.logMode] || P.modes.fixed, ln = md.ln, ki = P.ki, usd = RUN.usd;
+    const tb = $('#t-log').tBodies[0], frag = document.createDocumentFragment();
+    let pk = ln[0]; const peak = new Float64Array(t + 1); peak[0] = pk;
+    for (let i = 1; i <= t; i++) { if (ln[i] > pk) pk = ln[i]; peak[i] = pk; }
+    const lim = 300, from = Math.max(1, t - lim + 1), fresh = RUN.state === 'running' && prevT >= 0 && t > prevT && t - prevT <= 3 && !reduceMotion;
+    for (let i = t; i >= from; i--) {
+      const won = P.win[i - 1] === 1, tr = document.createElement('tr');
+      if (fresh && i > prevT) tr.className = 'new';
+      let traded = true, riskTxt, plTxt;
+      if (TS.logMode === 'fixed') {
+        traded = md.bust < 0 || i - 1 < md.bust;
+        riskTxt = traded ? fMoney(usd) : '$0';
+        plTxt = traded ? fSignUSD(md.eq[i] - md.eq[i - 1]) : '$0';
+      } else {
+        traded = md.f > 0;
+        riskTxt = traded ? fMoneyLn(ln[i - 1] + Math.log(md.f)) : '$0';
+        const fac = won ? md.f * ki.w : md.f * ki.l;
+        plTxt = traded && fac > 0 ? (won ? '+' : '−') + fMoneyLn(ln[i - 1] + Math.log(fac)) : '$0';
+      }
+      const cells = [
+        [String(i), ''], [traded ? (won ? 'Win' : 'Loss') : 'No trade', traded ? (won ? 'pos-t' : 'neg-t') : 'dim'],
+        [traded ? fR(won ? ki.w : -ki.l) : '—', ''], [riskTxt, ''], [plTxt, traded ? (won && ki.w > 0 ? 'pos-t' : 'neg-t') : 'dim'],
+        [fMoneyLn(ln[i]), ''], [fDD(1 - Math.exp(ln[i] - peak[i])), ''],
+      ];
+      cells.forEach(([txt, cls]) => { const td = document.createElement('td'); td.textContent = txt; if (cls) td.className = cls; tr.append(td); });
+      frag.append(tr);
+    }
+    if (t === 0) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 7; td.className = 'dim'; td.textContent = 'No trades yet. Press Start and each trade appears here as it is drawn.'; tr.append(td); frag.append(tr); }
+    tb.replaceChildren(frag);
+    $('#t-log-meta').textContent = t > lim ? `Newest first · last ${lim} of ${t.toLocaleString('en-US')} trades` : `Newest first · ${t.toLocaleString('en-US')} trade${t === 1 ? '' : 's'}`;
+  }
+
+  // ---------- Monte Carlo across many sequences, every position size on the same outcomes ----------
+  function mcSim(N, p, ki, bal, usd, P, seed) {
+    const rnd = mulberry32(seed), nm = MODES.length, lb = Math.log(bal), lbust = Math.log(0.1 * bal);
+    const lu = new Float64Array(nm), ld = new Float64Array(nm), fs = new Float64Array(nm);
+    MODES.forEach((md, i) => { const f = modeF(md, ki); fs[i] = f; lu[i] = Math.log1p(f * ki.w); ld[i] = Math.log1p(-f * ki.l); });
+    const fin = MODES.map(() => new Float64Array(P)), mdd = MODES.map(() => new Float64Array(P));
+    const bust = new Uint32Array(nm), below = new Uint32Array(nm);
+    const lnE = new Float64Array(nm), lnPk = new Float64Array(nm), ddv = new Float64Array(nm), bz = new Uint8Array(nm);
+    for (let path = 0; path < P; path++) {
+      let e = bal, pk = bal, dd = 0, bf = false, stopped = false;
+      lnE.fill(lb); lnPk.fill(lb); ddv.fill(0); bz.fill(0);
+      for (let t = 0; t < N; t++) {
+        const wn = rnd() < p;
+        if (!stopped) {
+          if (e < usd * ki.l) stopped = true;
+          else { e += usd * (wn ? ki.w : -ki.l); if (e > pk) pk = e; else { const d = 1 - e / pk; if (d > dd) dd = d; } if (e <= 0.1 * bal) bf = true; }
+        }
+        for (let i = 1; i < nm; i++) {
+          const v = lnE[i] + (wn ? lu[i] : ld[i]); lnE[i] = v;
+          if (v > lnPk[i]) lnPk[i] = v; else { const d = v - lnPk[i]; if (d < ddv[i]) ddv[i] = d; }
+          if (v <= lbust) bz[i] = 1;
+        }
+      }
+      fin[0][path] = Math.log(Math.max(e, 1e-9)); mdd[0][path] = dd; if (bf || stopped) bust[0]++; if (e < bal - 1e-9) below[0]++;
+      for (let i = 1; i < nm; i++) { fin[i][path] = lnE[i]; mdd[i][path] = 1 - Math.exp(ddv[i]); if (bz[i]) bust[i]++; if (lnE[i] < lb - 1e-12) below[i]++; }
+    }
+    const q = (arr, a) => { const s = Float64Array.from(arr).sort(); const i = (s.length - 1) * a, lo = Math.floor(i), hi = Math.ceil(i); return s[lo] + (s[hi] - s[lo]) * (i - lo); };
+    return MODES.map((md, i) => ({ md, f: fs[i], med: q(fin[i], 0.5), p05: q(fin[i], 0.05), p95: q(fin[i], 0.95), pBelow: below[i] / P, ddMed: q(mdd[i], 0.5), dd95: q(mdd[i], 0.95), pBust: bust[i] / P }));
+  }
+  function renderMC(ki) {
+    const N = TS.n, bal = TS.bal, usd = state.usd, p = state.p;
+    const P = Math.max(300, Math.min(4000, Math.floor(8e6 / (N * MODES.length))));
+    const res = mcSim(N, p, ki, bal, usd, P, 7771);
+    $('#m-meta').textContent = `${P.toLocaleString('en-US')} sequences × ${N.toLocaleString('en-US')} trades · start ${fMoney(bal)}`;
+    const T = $('#m-table'); T.replaceChildren();
+    const hr = document.createElement('tr');
+    ['Position size', 'Risk / trade', 'Median final', '5th–95th pct', 'P(end below start)', 'Median max DD', '95th pct max DD', 'P(bust)'].forEach((h) => { const th = document.createElement('th'); th.textContent = h; hr.append(th); });
+    const thead = document.createElement('thead'); thead.append(hr); T.append(thead);
+    const tb = document.createElement('tbody');
+    let bestI = -1, bestMed = -Infinity; res.forEach((r, i) => { if (r.med > bestMed + 1e-12) { bestMed = r.med; bestI = i; } });
+    res.forEach((r, i) => {
+      const tr = document.createElement('tr'); if (i === bestI) tr.className = 'hl';
+      const td0 = document.createElement('td'); td0.append(swatch(r.md.color), document.createTextNode(modeLabel(r.md, usd))); tr.append(td0);
+      const add = (txt, cls) => { const td = document.createElement('td'); td.textContent = txt; if (cls) td.className = cls; tr.append(td); };
+      add(r.md.id === 'fixed' ? fMoney(usd) : fK2(r.f));
+      add(fMoneyLn(r.med), sideCls(r.med - Math.log(bal)));
+      add(`${fMoneyLn(r.p05)} – ${fMoneyLn(r.p95)}`);
+      add(fP(r.pBelow)); add(fDD(r.ddMed)); add(fDD(r.dd95)); add(fP(r.pBust), r.pBust > 0.05 ? 'neg-t' : '');
+      tb.append(tr);
+    });
+    T.append(tb);
+  }
+
+  // ---------- prop challenge: per-trade balance walk until the target or the drawdown floor ----------
+  function passSim(p, usd, M, seed) {
+    const { b, c } = state, T = state.tgt, D = state.dd, type = TS.passType, maxT = TS.passMax;
+    const w = (b - c) * usd, l = (1 + c) * usd, rnd = mulberry32(seed);
+    let pass = 0, breach = 0; const tp = [];
+    for (let a = 0; a < M; a++) {
+      let bal = 0, pk = 0, floor = -D;
+      for (let t = 1; t <= maxT; t++) {
+        bal += rnd() < p ? w : -l;
+        if (bal > pk) { pk = bal; if (type === 'lock') floor = Math.min(pk - D, 0); else if (type === 'trail') floor = pk - D; }
+        if (bal >= T - 1e-9) { pass++; tp.push(t); break; }
+        if (bal <= floor + 1e-9) { breach++; break; }
+      }
+    }
+    tp.sort((x, y) => x - y);
+    return { pPass: pass / M, pBreach: breach / M, pOpen: 1 - (pass + breach) / M, medPass: tp.length ? tp[Math.floor((tp.length - 1) / 2)] : NaN };
+  }
+  function renderPass() {
+    const { p, b, c, usd, tgt, dd } = state, maxT = TS.passMax;
+    const M = Math.max(2000, Math.min(20000, Math.floor(4e6 / maxT))), p0 = be(b, c);
+    const r = passSim(p, usd, M, 4242), r0 = passSim(p0, usd, M, 4242);
+    TS.passNow = { usd, e: r.pPass, z: r0.pPass };
+    const tR = tgt / usd, dR = dd / usd, w = b - c, fast = w > 0 ? Math.ceil(tR / w - 1e-9) : Infinity;
+    $('#pa-meta').textContent = `${M.toLocaleString('en-US')} simulated accounts per estimate`;
+    const inp = $('#pa-inputs'); inp.replaceChildren();
+    const b1 = document.createElement('b'); b1.textContent = `Target ${fMoney(tgt)} = ${tR.toFixed(1)}R · drawdown ${fMoney(dd)} = ${dR.toFixed(1)}R · risk ${fMoney(usd)} per trade.`;
+    inp.append(b1, document.createTextNode(' Change these in Next N trades above.'));
+    const S = $('#pa-stats'); S.replaceChildren();
+    const lift = r.pPass - r0.pPass, lc = lift > 0.005 ? 'pos-t' : lift < -0.005 ? 'neg-t' : '';
+    row(S, `P(pass within ${maxT.toLocaleString('en-US')} trades)`, fP(r.pPass), `at ${fPct(p)} · 1:${+b.toFixed(2)}`, 'big ' + lc);
+    row(S, 'Coin-flip baseline', p0 >= 1 ? '—' : fP(r0.pPass), p0 >= 1 ? 'no win rate breaks even at this R:R after costs' : `same R:R and risk at the breakeven win rate ${fPct(p0)}`);
+    row(S, 'Lift from your edge', fPP(lift), lift > 0 ? 'your edge adds to the pass odds' : lift < 0 ? 'you pass less often than a coin flip' : 'no edge', lc);
+    row(S, 'P(breach the drawdown)', fP(r.pBreach), '');
+    row(S, `Still open after ${maxT.toLocaleString('en-US')}`, fP(r.pOpen), 'neither the target nor the floor was reached');
+    row(S, 'Median trades to pass', Number.isFinite(r.medPass) ? r.medPass.toLocaleString('en-US') : '—', 'among accounts that pass');
+    row(S, 'Fastest pass', Number.isFinite(fast) ? `${fast} straight wins` : 'never', Number.isFinite(fast) ? `each win nets ${fR(w)}R` : 'a win nets 0R or less after costs');
+    const WT = $('#pa-wins'); WT.replaceChildren();
+    const hr = document.createElement('tr'); ['Trades', 'Wins needed', 'Win rate', 'P(enough wins)'].forEach((h) => { const th = document.createElement('th'); th.textContent = h; hr.append(th); });
+    const th = document.createElement('thead'); th.append(hr); WT.append(th);
+    const tb = document.createElement('tbody');
+    if (!Number.isFinite(fast)) { const tr = document.createElement('tr'); const td = document.createElement('td'); td.colSpan = 4; td.textContent = 'Unreachable: a win nets 0R or less after costs.'; tr.append(td); tb.append(tr); }
+    else {
+      const ns = [...new Set([fast, 10, 20, 30, 50, 100, 200, maxT].filter((x) => x >= fast && x <= maxT && x >= 1))].sort((x, y) => x - y);
+      ns.forEach((n) => {
+        const k = Math.max(0, Math.ceil((tR + n * (1 + c)) / (1 + b) - 1e-9)); if (k > n) return;
+        const pk = tailGE(n, p, k), tr = document.createElement('tr');
+        [[n.toLocaleString('en-US') + (n === fast ? ' (fastest)' : ''), ''], [`${k} of ${n}`, ''], [fPct(k / n), k / n > p ? 'neg-t' : 'pos-t'], [fP(pk), '']].forEach(([txt, cls]) => { const td = document.createElement('td'); td.textContent = txt; if (cls) td.className = cls; tr.append(td); });
+        tb.append(tr);
+      });
+    }
+    WT.append(tb);
+  }
+  function computePassCurve() {
+    const { p, b, c, usd, dd } = state, maxT = TS.passMax;
+    const Ms = Math.max(400, Math.min(3000, Math.floor(6e5 / maxT)));
+    let rmin = Math.max(1, dd / 150), rmax = dd; rmin = Math.min(rmin, usd / 1.25); rmax = Math.max(rmax, usd * 1.25);
+    const K = 16, p0 = be(b, c), pts = [], my = gen;
+    const stepAt = (i) => {                       // one risk level per task keeps the page responsive
+      if (my !== gen) return;
+      const r = rmin * Math.pow(rmax / rmin, i / (K - 1));
+      pts.push({ r, e: passSim(p, r, Ms, 99).pPass, z: passSim(p0, r, Ms, 99).pPass });
+      if (i + 1 < K) setTimeout(() => stepAt(i + 1), 0); else { TS.passPts = pts; drawPassCurve(); }
+    };
+    stepAt(0);
+  }
+  function drawPassCurve() {
+    const box = $('#pa-curve'); box.replaceChildren(); const pts = TS.passPts; if (!pts) return;
+    const W = Math.max(280, box.clientWidth || 480), H = 240, m = { l: 44, r: 14, t: 12, b: 30 };
+    const la = Math.log(pts[0].r), lb2 = Math.log(pts[pts.length - 1].r);
+    const x = (r) => m.l + ((Math.log(r) - la) / (lb2 - la)) * (W - m.l - m.r), y = (v) => m.t + (1 - v) * (H - m.t - m.b);
+    const svg = svgEl('svg', { width: '100%', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Probability of passing the challenge by risk per trade' }, box);
+    [0, 0.25, 0.5, 0.75, 1].forEach((v) => { svgEl('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v), stroke: 'var(--line)', 'stroke-width': 1 }, svg); const tx = svgEl('text', { x: m.l - 8, y: y(v), dy: '0.32em', 'text-anchor': 'end' }, svg); tx.textContent = v * 100 + '%'; });
+    const xt = []; for (let d = Math.floor(la / Math.LN10); d <= Math.ceil(lb2 / Math.LN10); d++) for (const k of [1, 2, 5]) { const v = k * Math.pow(10, d); if (Math.log(v) >= la - 1e-9 && Math.log(v) <= lb2 + 1e-9) xt.push(v); }
+    let lastX = -1e9; xt.forEach((v) => { if (x(v) - lastX < 34) return; lastX = x(v); const tx = svgEl('text', { x: x(v), y: H - 10, 'text-anchor': 'middle' }, svg); tx.textContent = fTick10(Math.log10(v)); });
+    svgEl('path', { d: 'M' + pts.map((d) => `${x(d.r)},${y(d.z)}`).join('L'), fill: 'none', stroke: 'var(--ink-2)', 'stroke-width': 1.5, 'stroke-dasharray': '5 4' }, svg);
+    svgEl('path', { d: 'M' + pts.map((d) => `${x(d.r)},${y(d.e)}`).join('L'), fill: 'none', stroke: 'var(--line-main)', 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }, svg);
+    const now = TS.passNow;
+    if (now && Math.log(now.usd) >= la - 1e-9 && Math.log(now.usd) <= lb2 + 1e-9) {
+      svgEl('line', { x1: x(now.usd), x2: x(now.usd), y1: m.t, y2: H - m.b, stroke: 'var(--ink-2)', 'stroke-width': 1.2 }, svg);
+      svgEl('circle', { cx: x(now.usd), cy: y(now.e), r: 4.5, fill: 'var(--line-main)', stroke: 'var(--surface)', 'stroke-width': 1.5 }, svg);
+      svgEl('circle', { cx: x(now.usd), cy: y(now.z), r: 3.5, fill: 'var(--muted)', stroke: 'var(--surface)', 'stroke-width': 1.5 }, svg);
+    }
+    const tip = tipFor(box), dot = svgEl('circle', { r: 4, fill: 'var(--ink)', stroke: 'var(--surface)', 'stroke-width': 1.5, style: 'display:none' }, svg);
+    const hit = svgEl('rect', { x: m.l, y: 0, width: W - m.l - m.r, height: H - m.b, fill: 'transparent' }, svg);
+    const at = (ev) => { const r = svg.getBoundingClientRect(), sc = r.width / W, mx = (ev.clientX - r.left) / sc; const lr = la + ((mx - m.l) / (W - m.l - m.r)) * (lb2 - la); return { sc, risk: Math.exp(Math.max(la, Math.min(lb2, lr))) }; };
+    hit.addEventListener('pointermove', (ev) => {
+      const { sc, risk } = at(ev); let best = pts[0]; for (const d of pts) if (Math.abs(Math.log(d.r) - Math.log(risk)) < Math.abs(Math.log(best.r) - Math.log(risk))) best = d;
+      dot.style.display = ''; dot.setAttribute('cx', x(best.r)); dot.setAttribute('cy', y(best.e));
+      setTip(tip, `risk ${fMoney(best.r)} per trade · click to use`, [['var(--line-main)', `your win rate ${fP(best.e)}`], ['var(--ink-2)', `breakeven win rate ${fP(best.z)}`]]);
+      placeTip(box, tip, x(best.r) * sc, y(best.e) * sc);
+    });
+    hit.addEventListener('pointerleave', () => { tip.hidden = true; dot.style.display = 'none'; });
+    hit.addEventListener('click', (ev) => {
+      const { risk } = at(ev); const v = risk < 50 ? Math.round(risk) : risk < 500 ? Math.round(risk / 5) * 5 : Math.round(risk / 25) * 25;
+      $('#in-usd').value = Math.max(1, v); read(); renderMatrix(); schedule();
+    });
+  }
+
+  // ---------- orchestration ----------
+  let lowerTimer = null, gen = 0;
+  function scheduleLower() { clearTimeout(lowerTimer); lowerTimer = setTimeout(computeLower, 40); }
+  function computeLower() {
+    const my = ++gen;
+    readLower();
+    const ki = sizeInfo(state.p, state.b, state.c); TS.ki = ki;
+    renderSizing(ki);
+    syncRun();
+    setTimeout(() => {
+      if (my !== gen) return; renderMC(ki);
+      setTimeout(() => { if (my !== gen) return; renderPass(); setTimeout(() => { if (my !== gen) return; computePassCurve(); }, 0); }, 0);
+    }, 0);
+  }
+  function schedulePass() { const my = ++gen; setTimeout(() => { if (my !== gen) return; renderPass(); setTimeout(() => { if (my !== gen) return; computePassCurve(); }, 0); }, 30); }
+
+  MODES.forEach((md) => { const o = document.createElement('option'); o.value = md.id; o.textContent = md.name; $('#t-log-mode').append(o); });
+  $('#t-log-mode').value = TS.logMode;
+  $('#t-log-mode').addEventListener('change', () => { TS.logMode = $('#t-log-mode').value; if (RUN) renderLog(tNow(Date.now()), -1); });
+  $('#t-chart-mode').addEventListener('click', (ev) => {
+    const bt = ev.target.closest('button[data-mode]'); if (!bt) return;
+    TS.chartMode = bt.dataset.mode;
+    [...$('#t-chart-mode').children].forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.mode === TS.chartMode)));
+    if (RUN) drawLive(tNow(Date.now()));
+  });
+  RATE_PRESETS.forEach(([every, unit, label]) => {
+    const bt = document.createElement('button'); bt.type = 'button'; bt.dataset.every = every; bt.dataset.unit = unit; bt.textContent = label;
+    bt.addEventListener('click', () => { $('#t-every').value = every; $('#t-unit').value = unit; applyRate(); });
+    $('#rate-presets').append(bt);
+  });
+  $('#t-every').addEventListener('input', applyRate);
+  $('#t-unit').addEventListener('change', applyRate);
+  ['#t-bal', '#t-n'].forEach((id) => $(id).addEventListener('input', scheduleLower));
+  $('#t-go').addEventListener('click', goBtn);
+  $('#t-skip').addEventListener('click', skipEnd);
+  $('#t-new').addEventListener('click', () => { const was = RUN && RUN.state === 'running'; newRun(was); });
+  ['#pa-type', '#pa-max'].forEach((id) => $(id).addEventListener(id === '#pa-max' ? 'input' : 'change', () => { readLower(); schedulePass(); }));
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && RUN && RUN.state === 'running') loop(); });
+
+  // restore a saved run (this browser only) before the first render, so the page reopens where it was
+  (function restoreRun() {
+    const r = store.get();
+    if (!validRun(r)) {
+      readLower(); read();
+      RUN = makeRun(newSeed(), true);                 // first visit: a demo run that ticks at 1 trade a second
+      if (!reduceMotion) startRun();
+      return;
+    }
+    RUN = r; RUN.auto = false;
+    const setv = (id, v) => { const el = $(id); if (el) el.value = v; };
+    setv('#in-p', +(100 * r.p).toFixed(3)); setv('#in-b', +r.b.toFixed(4)); setv('#in-c', +r.c.toFixed(4)); setv('#in-usd', r.usd);
+    setv('#t-bal', r.bal); setv('#t-n', r.n); setv('#t-every', r.every); setv('#t-unit', r.unit);
+  })();
+  markPresets();
+
+  N_PRESETS.forEach((n) => { const bt = document.createElement('button'); bt.type = 'button'; bt.dataset.n = n; bt.textContent = n.toLocaleString('en-US'); bt.addEventListener('click', () => { $('#in-n').value = n; read(); renderMatrix(); schedule(); }); $('#n-presets').append(bt); });
+  ['#in-p', '#in-b', '#in-n', '#in-usd', '#in-dd', '#in-tgt'].forEach((id) => $(id).addEventListener('input', () => { read(); renderMatrix(); schedule(); }));
+  $('#in-c').addEventListener('input', () => { read(); renderMatrix(); schedule(); });
+  let lastW = 0, lastTW = 0;
+  new ResizeObserver(() => { const w = $('#fan').clientWidth; if (Math.abs(w - lastW) > 4) { lastW = w; schedule(); } }).observe($('#fan'));
+  new ResizeObserver(() => { const w = $('#t-chart').clientWidth; if (Math.abs(w - lastTW) > 4) { lastTW = w; if (RUN && PATH) drawLive(tNow(Date.now())); drawSizingCurve(); drawPassCurve(); } }).observe($('#t-chart'));
+  read(); readLower();
+  buildLegend(); renderMatrix(); compute();
+  window.__rr = { betai, tailGE, pmf, sizeInfo, passSim, fracStats, mcSim, simPath, binomQ, state, TS, getRun: () => RUN, tNow: () => (RUN ? tNow(Date.now()) : 0), cone: () => CONE };
+})();
+</script>
+
+</body></html>
